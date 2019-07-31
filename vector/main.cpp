@@ -29,4 +29,7 @@ int main()
 	Vector<int> a(10);
 	a.push_back(1);
 	a.print();
+	Vector<int> b;
+	b = std::move(a);
+	b.print();
 }

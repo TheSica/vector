@@ -22,7 +22,7 @@ public:
 	void print();
 private:
 	void cleanup();
-	void resize();
+	void resize(size_t new_capacity);
 private:
 	size_t _size;
 	size_t _capacity;
@@ -85,23 +85,43 @@ Vector<T>::~Vector()
 template<typename T>
 Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 {
-	_size = other._size;
-	_capacity = other._capacity;
+	if (&other != this)
+	{
+		if (_capacity >= other._capacity)
+		{
+			for (int i = 0; i < _size; ++i)
+			{
+				_container[_size - 1 - i].~T();
+			}
 
-	std::copy(other._container, other._container + other._size, _container);
+			_size = other._size;
+		}
+		else
+		{
+			cleanup();
 
+			_capacity = other._capacity;
+			_size = other._size;
+
+			_container = static_cast<T*>(std::malloc(sizeof(T) * _capacity));
+		}
+
+		std::copy(other._container, other._container + other._size, _container);
+	}
 	return *this;
 }
 
 template<typename T>
 Vector<T>& Vector<T>::operator=(Vector<T>&& other) noexcept
 {
-	cleanup();
+	if (&other != this)
+	{
+		cleanup();
 
-	std::swap(_size, other._size);
-	std::swap(_capacity, other._capacity);
-	std::swap(_container, other._container);
-
+		std::swap(_size, other._size);
+		std::swap(_capacity, other._capacity);
+		std::swap(_container, other._container);
+	}
 	return *this;
 }
 
@@ -110,7 +130,7 @@ void Vector<T>::push_back(const T& element)
 {
 	if (_size + 1 > _capacity)
 	{
-		resize();
+		resize(_capacity * 2);
 	}
 
 	new(_container + _size) T(element);
@@ -122,7 +142,7 @@ void Vector<T>::push_back(T&& element)
 {
 	if (_size + 1 > _capacity)
 	{
-		resize();
+		resize(_capacity * 2);
 	}
 
 	new(_container + _size) T(std::move(element));
@@ -137,7 +157,7 @@ inline void Vector<T>::print()
 		std::cout << _container[i] << " ";
 	}
 
-	std::cout<<std::endl;
+	std::cout << std::endl;
 }
 
 template<typename T>
@@ -153,9 +173,9 @@ void Vector<T>::cleanup()
 }
 
 template<typename T>
-void Vector<T>::resize()
+void Vector<T>::resize(size_t new_capacity)
 {
-	_capacity *= 2;
+	_capacity = new_capacity;
 
 	if (void* mem = std::realloc(_container, _capacity))
 	{
