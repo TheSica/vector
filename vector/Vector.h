@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 
 template<typename T>
 class Vector
@@ -15,61 +16,68 @@ public:
 	Vector<T>& operator=(const Vector<T>& other);
 	Vector<T>& operator=(Vector<T>&& other) noexcept;
 
+public:
+	void push_back(const T& element);
+	void push_back(T&& element);
+	void print();
 private:
 	void cleanup();
+	void resize();
 private:
-	size_t size;
-	size_t capacity;
-	T* container;
+	size_t _size;
+	size_t _capacity;
+	T* _container;
 };
 
 template<typename T>
-inline Vector<T>::Vector()
+Vector<T>::Vector()
 	:
-	size(0),
-	capacity(1),
-	container(static_cast<T*>(std::malloc(sizeof(T))))
+	_size(0),
+	_capacity(1),
+	_container(static_cast<T*>(std::malloc(sizeof(T))))
 {
 }
 
 template<typename T>
-inline Vector<T>::Vector(size_t size)
+Vector<T>::Vector(size_t size)
 	:
-	size(size),
-	capacity(size * 2),
-	container(static_cast<T*>(std::malloc(sizeof(T)* capacity)))
+	_size(size),
+	_capacity(size * 2),
+	_container(static_cast<T*>(std::malloc(sizeof(T)* _capacity)))
 {
-
 	for (size_t i = 0; i < size; ++i)
 	{
-		new (container + i) T();
+		new (_container + i) T();
 	}
 }
 
 template<typename T>
-inline Vector<T>::Vector(const Vector& other)
+Vector<T>::Vector(const Vector<T>& other)
 	:
-	size(other.size),
-	capacity(other.capacity),
-	container(static_cast<T*>(std::malloc(sizeof(T) * capacity)))
+	_size(0),
+	_capacity(other._capacity),
+	_container(static_cast<T*>(std::malloc(sizeof(T)* _capacity)))
 {
-	std::copy(other.container, other.container + size, container);
+	for (size_t i = 0; i < other._size; ++i)
+	{
+		push_back(other._container[i]);
+	}
 }
 
 template<typename T>
-inline Vector<T>::Vector(Vector&& other) noexcept
+Vector<T>::Vector(Vector<T>&& other) noexcept
 	:
-	size(0),
-	capacity(0),
-	container(nullptr)
+	_size(0),
+	_capacity(0),
+	_container(nullptr)
 {
-	std::swap(size, other.size);
-	std::swap(capacity, other.capacity);
-	std::swap(container, other.container);
+	std::swap(_size, other._size);
+	std::swap(_capacity, other._capacity);
+	std::swap(_container, other._container);
 }
 
 template<typename T>
-inline Vector<T>::~Vector()
+Vector<T>::~Vector()
 {
 	cleanup();
 }
@@ -77,37 +85,84 @@ inline Vector<T>::~Vector()
 template<typename T>
 Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 {
-	size = other.size;
-	capacity = other.capacity;
+	_size = other._size;
+	_capacity = other._capacity;
 
-	std::copy(other.container, other.container + other.size, container);
+	std::copy(other._container, other._container + other._size, _container);
 
 	return *this;
 }
 
 template<typename T>
-inline Vector<T>& Vector<T>::operator=(Vector<T>&& other) noexcept
+Vector<T>& Vector<T>::operator=(Vector<T>&& other) noexcept
 {
 	cleanup();
 
-	std::swap(size, other.size);
-	std::swap(capacity, other.capacity);
-	std::swap(container, other.container);
+	std::swap(_size, other._size);
+	std::swap(_capacity, other._capacity);
+	std::swap(_container, other._container);
 
 	return *this;
 }
 
 template<typename T>
-inline void Vector<T>::cleanup()
+void Vector<T>::push_back(const T& element)
 {
-	for (int i = size - 1; i >= 0; --i)
+	if (_size + 1 > _capacity)
 	{
-		container[i].~T();
+		resize();
 	}
 
-	delete[] container;
-	container = nullptr;
+	new(_container + _size) T(element);
+	_size += 1;
+}
 
-	size = 0;
-	capacity = 0;
+template<typename T>
+void Vector<T>::push_back(T&& element)
+{
+	if (_size + 1 > _capacity)
+	{
+		resize();
+	}
+
+	new(_container + _size) T(std::move(element));
+	_size += 1;
+}
+
+template<typename T>
+inline void Vector<T>::print()
+{
+	for (int i = 0; i < _size; ++i)
+	{
+		std::cout << _container[i] << " ";
+	}
+
+	std::cout<<std::endl;
+}
+
+template<typename T>
+void Vector<T>::cleanup()
+{
+	for (int i = 0; i < _size; ++i)
+	{
+		_container[_size - 1 - i].~T();
+	}
+
+	free(_container);
+	_container = nullptr;
+}
+
+template<typename T>
+void Vector<T>::resize()
+{
+	_capacity *= 2;
+
+	if (void* mem = std::realloc(_container, _capacity))
+	{
+		_container = static_cast<T*>(mem);
+	}
+	else
+	{
+		throw std::bad_alloc();
+	}
 }
