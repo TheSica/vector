@@ -1,6 +1,8 @@
 #include "Vector.h"
 #include <iostream>
 #include <vector>
+#include <cstdio>
+#include "gtest/gtest.h"
 
 struct S
 {
@@ -12,24 +14,12 @@ struct S
 	S& operator=(S&&) noexcept { puts("=(S&&)"); return *this; }
 };
 
-int main()
-{
-	/*{
-		std::cout << "std::vector: \n";
-		std::vector<S> a;
-		a.push_back(S());
-	}
-		std::cout << std::endl;
-	{
-		std::cout << "Vector: \n";
-		Vector<S> a;
-		a.push_back(S());
-	}*/
 
-	Vector<int> a(10);
-	a.push_back(1);
-	a.print();
-	Vector<int> b;
-	b = std::move(a);
-	b.print();
+GTEST_API_ int main(int argc, char** argv) 
+{
+	printf("Running main() from %s\n", __FILE__);
+	testing::InitGoogleTest(&argc, argv);
+
+
+	return RUN_ALL_TESTS();
 }
