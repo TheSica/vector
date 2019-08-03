@@ -26,7 +26,6 @@
     <None Include=".clang-tidy">
       <Filter>Source Files</Filter>
     </None>
-    <None Include="cpp.hint" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Vector.h">

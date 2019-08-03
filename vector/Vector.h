@@ -9,6 +9,16 @@ template<typename T>
 class Vector
 {
 public:
+	typedef T*				iterator;
+	typedef const T*		const_iterator;
+
+	typedef T&				reference;
+	typedef const T&		const_reference;
+
+	typedef T*				pointer;
+	typedef const T*		const_pointer;
+
+public:
 	Vector();
 	explicit Vector(size_t size);
 	Vector(const Vector<T>& other);
@@ -20,15 +30,36 @@ public:
 public:
 	void push_back(const T& element);
 	void push_back(T&& element);
-	void print();
+public:
+	T& operator[](size_t n);
+	const T& operator[](size_t n) const;
+
 public:
 	bool validate() const noexcept;
 	bool empty() const noexcept;
 	size_t size() const noexcept;
+
+public:
+	iterator				begin() noexcept;
+	const_iterator			begin() const noexcept;
+
+	iterator				end() noexcept;
+	const_iterator			end() const noexcept;
+
+	reference				front();
+	const_reference			front() const;
+
+	reference				back();
+	const_reference			back() const;
+
+	pointer					data() noexcept;
+	const_pointer			data() const noexcept;
+
 private:
 	void cleanup();
-	void resize(size_t new_capacity);
-	void swap(Vector<T>& other);
+	void resize();
+	void swap(Vector<T>& other) noexcept;
+
 private:
 	size_t _size;
 	size_t _capacity;
@@ -62,7 +93,7 @@ Vector<T>::Vector(const Vector<T>& other)
 	:
 	_size(0),
 	_capacity(other._size),
-	_container(static_cast<T*>(_aligned_malloc(sizeof(T)* _size, alignof(T))))
+	_container(static_cast<T*>(_aligned_malloc(sizeof(T)* other._size, alignof(T))))
 {
 	for (size_t i = 0; i < other._size; ++i)
 	{
@@ -94,26 +125,6 @@ Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 	{
 		Vector<T> tmp(other);
 		swap(tmp);
-		/*if (_capacity >= other._capacity)
-		{
-			for (int i = 0; i < _size; ++i)
-			{
-				_container[_size - 1 - i].~T();
-			}
-
-			_size = other._size;
-		}
-		else
-		{
-			cleanup();
-
-			_capacity = other._capacity;
-			_size = other._size;
-
-			_container = static_cast<T*>(_aligned_malloc(sizeof(T) * _capacity));
-		}
-
-		std::copy(other._container, other._container + other._size, _container);*/
 	}
 	return *this;
 }
@@ -128,13 +139,12 @@ Vector<T>& Vector<T>::operator=(Vector<T>&& other) noexcept
 	return *this;
 }
 
-
 template<typename T>
 void Vector<T>::push_back(const T& element)
 {
 	if (_size == _capacity)
 	{
-		resize(_capacity * 2);
+		resize();
 	}
 
 	new(_container + _size) T(element);
@@ -144,9 +154,9 @@ void Vector<T>::push_back(const T& element)
 template<typename T>
 void Vector<T>::push_back(T&& element)
 {
-	if (_size ==_capacity)
+	if (_size == _capacity)
 	{
-		resize(_capacity * 2);
+		resize();
 	}
 
 	new(_container + _size) T(std::move(element));
@@ -154,20 +164,90 @@ void Vector<T>::push_back(T&& element)
 }
 
 template<typename T>
-inline void Vector<T>::print()
+void Vector<T>::cleanup()
 {
-	for (int i = 0; i < _size; ++i)
+	for (size_t i = 0; i < _size; ++i)
 	{
-		//std::cout << _container[i] << " ";
+		_container[_size - 1 - i].~T();
 	}
 
-	std::cout << std::endl;
+	_aligned_free(_container);
+}
+
+template<typename T>
+void Vector<T>::resize()
+{
+	_capacity = std::max(static_cast<size_t>(2), _capacity * 2);
+
+	if (void* mem = _aligned_malloc(sizeof(T) * _capacity, alignof(T)))
+	{
+		try
+		{
+			auto first = static_cast<T*>(mem);
+			std::uninitialized_copy(begin(), end(), first);
+
+			cleanup();
+
+			_container = first;
+		}
+		catch(...)
+		{
+			_aligned_free(mem);
+		}
+	}
+	else
+	{
+		throw std::bad_alloc();
+	}
+}
+
+template<typename T>
+inline void Vector<T>::swap(Vector<T>& other) noexcept
+{
+	std::swap(_size, other._size);
+	std::swap(_capacity, other._capacity);
+	std::swap(_container, other._container);
+}
+
+template<typename T>
+inline bool operator==(const Vector<T>& a, const Vector<T>& b)
+{
+	return ((a.size() == b.size()) && std::equal(a.begin(), a.end(), b.begin()));
+}
+
+template<typename T>
+inline T& Vector<T>::operator[](size_t n)
+{
+	if (n >= (static_cast<size_t>(end() - begin())))
+	{
+		throw std::out_of_range("Vector::operator[] -- out of range");
+	}
+
+	return *(begin() + n);
+}
+
+template<typename T>
+inline const T& Vector<T>::operator[](size_t n) const
+{
+	if (n >= (static_cast<size_t>(end() - begin())))
+	{
+		throw std::out_of_range("Vector::operator[] -- out of range");
+	}
+
+	return *(begin() + n);
 }
 
 template<typename T>
 inline bool Vector<T>::validate() const noexcept
 {
-	return true;
+	if (begin() != nullptr && end() != nullptr)
+	{
+		return(begin() < end() && _capacity >= _size);
+	}
+	else
+	{
+		return (_capacity >= _size);
+	}
 }
 
 template<typename T>
@@ -183,44 +263,92 @@ inline size_t Vector<T>::size() const noexcept
 }
 
 template<typename T>
-void Vector<T>::cleanup()
+inline typename Vector<T>::iterator
+Vector<T>::begin() noexcept
 {
-	for (int i = 0; i < _size; ++i)
-	{
-		_container[_size - 1 - i].~T();
-	}
-
-	_aligned_free(_container);
+	return _container;
 }
 
 template<typename T>
-void Vector<T>::resize(size_t new_capacity)
+inline typename Vector<T>::const_iterator
+Vector<T>::begin() const noexcept
 {
-	std::cout<<"called"; 
-	_capacity = new_capacity;
-
-	if (void* mem = std::realloc(_container, _capacity))
-	{
-		_container = static_cast<T*>(mem);
-	}
-	else
-	{
-		throw std::bad_alloc();
-	}
+	return _container;
 }
 
 template<typename T>
-inline void Vector<T>::swap(Vector<T>& other)
+inline typename Vector<T>::iterator
+Vector<T>::end() noexcept
 {
-	_size = other._size;
-	_capacity = other._capacity;
-	_container = other._container;
+	return _container + _size;
+}
+
+template<typename T>
+inline typename Vector<T>::const_iterator
+Vector<T>::end() const noexcept
+{
+	return _container + _size;
+}
+
+template<typename T>
+inline typename Vector<T>::reference
+Vector<T>::front()
+{
+	if (_container + _size <= _container)
+	{
+		throw std::range_error("vector::front -- empty vector");
+	}
+
+	return *_container;
+}
+
+template<typename T>
+inline typename Vector<T>::const_reference
+Vector<T>::front() const
+{
+	if (_container + _size <= _container)
+	{
+		throw std::range_error("vector::front -- empty vector");
+	}
+
+	return *_container;
+}
+
+template<typename T>
+inline typename Vector<T>::reference
+Vector<T>::back()
+{
+	if (_container + _size <= _container)
+	{
+		throw std::range_error("vector::front -- empty vector");
+	}
+
+	return *(_container + _size - 1);
 }
 
 
 template<typename T>
-inline bool operator==(const Vector<T>& a, const Vector<T>& b)
+inline typename Vector<T>::const_reference
+Vector<T>::back() const
 {
-	//return ((a.size() == b.size()) && equal(a.begin(), a.end(), b.begin()));
-	return a.size() == b.size();
+	if (_container + _size <= _container)
+	{
+		throw std::range_error("vector::front -- empty vector");
+	}
+
+	return *(_container + _size - 1);
+}
+
+template<typename T>
+inline typename Vector<T>::const_pointer
+Vector<T>::data() const noexcept
+{
+	return _container;
+}
+
+template<typename T>
+inline typename Vector<T>::pointer
+Vector<T>::data() noexcept
+{
+	return _container;
 }
