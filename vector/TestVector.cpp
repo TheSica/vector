@@ -210,6 +210,17 @@ TYPED_TEST_P(VectorTest, GivenNonEmptyVector_CopyAssignmentOperatorWorks)
 	EXPECT_TRUE(vector2 == vector1);
 }
 
+TYPED_TEST_P(VectorTest, GivenEmptyVector_CopyAssignmentOperatorWorks)
+{
+	Vector<TypeParam> vector1;
+	Vector<TypeParam> vector2(10);
+
+	vector2 = vector1;
+
+	EXPECT_TRUE(vector2.validate());
+	EXPECT_TRUE(vector2 == vector1);
+}
+
 TYPED_TEST_P(VectorTest, GivenNonEmptyVector_SizeIsCorrect)
 {
 	Vector<TypeParam> vector1(10);
@@ -229,7 +240,8 @@ REGISTER_TYPED_TEST_SUITE_P(VectorTest,
 	GivenCopyConstructedVector_IsEqualAndValid,
 	GivenNonEmptyVector_CopyAssignmentOperatorWorks,
 	GivenNonEmptyVector_SizeIsCorrect,
-	GivenEmptyVector_DestructorWorks
+	GivenEmptyVector_DestructorWorks,
+	GivenEmptyVector_CopyAssignmentOperatorWorks
 );
 
 using TestTypes = ::testing::Types<int, TestObject, std::list<TestObject>>;
@@ -348,3 +360,39 @@ TEST(IteratorTests, GivenNonEmptyVector_AccessIteratorsWork)
 	}
 }
 
+TEST(EmplaceBackTests, GivenItemWithConstMembers_EmplacBackWorks)
+{
+	Vector<ItemWithConst> myVec2;
+	ItemWithConst& ref = myVec2.emplace_back(42);
+	EXPECT_EQ(myVec2.back().i, 42);
+	EXPECT_EQ(ref.i, 42);
+}
+
+TEST(EmplaceBackTests, GivenTestObjectVector_SizeIsCorrect)
+{
+	Vector<TestObject> toVectorA;
+
+	toVectorA.emplace_back(2, 3, 4);
+
+	EXPECT_EQ(toVectorA.size(), 1);
+}
+
+TEST(EmplaceBackTests, GivenTestObjectVector_ObjectIsConstructedProperly)
+{
+	Vector<TestObject> toVectorA;
+
+	auto& to = toVectorA.emplace_back(2, 3, 4);
+
+	EXPECT_EQ(toVectorA.back().mX, (2 + 3 + 4));
+	EXPECT_EQ(to.mX, (2 + 3 + 4));
+}
+
+TEST(EmplaceBackTests, GivenTestObjectVector_ASingleObjectIsConstructed)
+{
+	TestObject::Reset();
+
+	Vector<TestObject> toVectorA;
+
+	toVectorA.emplace_back(2, 3, 4);
+	EXPECT_EQ(TestObject::sTOCtorCount, 1);
+}

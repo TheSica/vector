@@ -30,6 +30,9 @@ public:
 public:
 	void push_back(const T& element);
 	void push_back(T&& element);
+
+	template<class... Args>
+	reference emplace_back(Args&&... args);
 public:
 	T& operator[](size_t n);
 	const T& operator[](size_t n) const;
@@ -124,7 +127,7 @@ Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 	if (&other != this)
 	{
 		Vector<T> tmp(other);
-		swap(tmp);
+		tmp.swap(*this);
 	}
 	return *this;
 }
@@ -134,7 +137,7 @@ Vector<T>& Vector<T>::operator=(Vector<T>&& other) noexcept
 {
 	if (&other != this)
 	{
-		swap(other);
+		other.swap(*this);
 	}
 	return *this;
 }
@@ -164,6 +167,22 @@ void Vector<T>::push_back(T&& element)
 }
 
 template<typename T>
+template<class... Args>
+inline typename Vector<T>::reference
+Vector<T>::emplace_back(Args&&... args)
+{
+	if (_size == _capacity)
+	{
+		resize();
+	}
+
+	new(_container + _size) T(std::forward<Args>(args)...);
+	_size += 1;
+
+	return back();
+}
+
+template<typename T>
 void Vector<T>::cleanup()
 {
 	for (size_t i = 0; i < _size; ++i)
@@ -179,20 +198,20 @@ void Vector<T>::resize()
 {
 	_capacity = std::max(static_cast<size_t>(2), _capacity * 2);
 
-	if (void* mem = _aligned_malloc(sizeof(T) * _capacity, alignof(T)))
+	if (void* try_alloc_mem = _aligned_malloc(sizeof(T) * _capacity, alignof(T)))
 	{
 		try
 		{
-			auto first = static_cast<T*>(mem);
-			std::uninitialized_copy(begin(), end(), first);
+			auto alloced_mem = static_cast<T*>(try_alloc_mem);
+			std::uninitialized_copy(begin(), end(), alloced_mem);
 
 			cleanup();
 
-			_container = first;
+			_container = alloced_mem;
 		}
 		catch(...)
 		{
-			_aligned_free(mem);
+			_aligned_free(try_alloc_mem);
 		}
 	}
 	else
@@ -240,14 +259,8 @@ inline const T& Vector<T>::operator[](size_t n) const
 template<typename T>
 inline bool Vector<T>::validate() const noexcept
 {
-	if (begin() != nullptr && end() != nullptr)
-	{
-		return(begin() < end() && _capacity >= _size);
-	}
-	else
-	{
-		return (_capacity >= _size);
-	}
+	//return(begin() < end() && _capacity >= _size);
+	return (_capacity >= _size);
 }
 
 template<typename T>

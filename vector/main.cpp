@@ -20,4 +20,7 @@ int main()
 {
 	testing::InitGoogleTest();
 	RUN_ALL_TESTS();
+
+	std::vector<S> base;
+	std::vector<S> t = base;
 }
