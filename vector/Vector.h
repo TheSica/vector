@@ -31,6 +31,10 @@ public:
 	void push_back(const T& element);
 	void push_back(T&& element);
 
+	iterator erase(iterator pos);
+	const_iterator erase(const_iterator pos);
+	iterator erase(iterator pos, iterator last);
+
 	template<class... Args>
 	reference emplace_back(Args&&... args);
 public:
@@ -167,6 +171,67 @@ void Vector<T>::push_back(T&& element)
 }
 
 template<typename T>
+typename Vector<T>::iterator
+Vector<T>::erase(iterator position)
+{
+	if (position < begin() || position >= end())
+	{
+		throw std::out_of_range("Vector::erase -- out of range");
+	}
+
+	std::move(position + 1, end(), position);
+
+	back().~T();
+	_size -= 1;
+
+	return position;
+}
+
+template<typename T>
+typename Vector<T>::const_iterator
+Vector<T>::erase(const_iterator position)
+{
+	if (position < begin() || position >= end())
+	{
+		throw std::out_of_range("Vector::erase -- out of range");
+	}
+
+	auto destPositon = const_cast<T*>(position);
+
+	std::move(destPositon + 1, end(), destPositon);
+
+	back().~T();
+	_size -= 1;
+
+	return destPositon;
+}
+
+template<typename T>
+typename Vector<T>::iterator
+Vector<T>::erase(iterator first, iterator last)
+{
+	if (first > last || first < begin() || first > end() || last < begin() || last > end())
+	{
+		throw std::out_of_range("Vector::erase(first, last) -- out of range");
+	}
+
+	if (first == last)
+	{
+		return begin();
+	}
+
+	size_t elementsToRemoveCnt = std::distance(first, last);
+
+	auto position = std::move(last, end(), first);
+
+	std::destroy(position, end());
+
+	_size -= elementsToRemoveCnt;
+
+	return first;
+}
+
+template<typename T>
 template<class... Args>
 inline typename Vector<T>::reference
 Vector<T>::emplace_back(Args&&... args)
@@ -185,10 +250,7 @@ Vector<T>::emplace_back(Args&&... args)
 template<typename T>
 void Vector<T>::cleanup()
 {
-	for (size_t i = 0; i < _size; ++i)
-	{
-		_container[_size - 1 - i].~T();
-	}
+	std::destroy(begin(), end());
 
 	_aligned_free(_container);
 }

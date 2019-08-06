@@ -265,13 +265,13 @@ TEST(AtOperator, GivenNonEmptyArray_AtOperatorThrowsWhenOutOfRange)
 		TestObject& r01 = vec01[6];
 		EXPECT_TRUE(!(r01 == TestObject(0)));  // Should not get here, as exception thrown.
 	}
-	catch (std::out_of_range&) 
-	{ 
-		EXPECT_TRUE(true); 
-	}
-	catch (...) 
+	catch (std::out_of_range&)
 	{
-		EXPECT_TRUE(false); 
+		EXPECT_TRUE(true);
+	}
+	catch (...)
+	{
+		EXPECT_TRUE(false);
 	}
 }
 
@@ -395,4 +395,90 @@ TEST(EmplaceBackTests, GivenTestObjectVector_ASingleObjectIsConstructed)
 
 	toVectorA.emplace_back(2, 3, 4);
 	EXPECT_EQ(TestObject::sTOCtorCount, 1);
+}
+
+TEST(EraseTests, GivenNonEmptyIntArray_SingleElementIsErased)
+{
+	Vector<int> intArray(20);
+
+	for (int i = 0; i < 20; ++i)
+	{
+		intArray[i] = i;
+	}
+
+	// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19
+
+	intArray.erase(intArray.begin() + 10);  // Becomes: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 19);
+}
+
+TEST(EraseTests, GivenNonEmptyIntArray_ElementsAreShifted)
+{
+	Vector<int> intArray(20);
+
+	for (int i = 0; i < 20; ++i)
+	{
+		intArray[i] = i;
+	}
+
+	// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19
+
+	intArray.erase(intArray.begin() + 10);  // Becomes: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray[0], 0);
+	EXPECT_EQ(intArray[10], 11);
+	EXPECT_EQ(intArray[18], 19);
+}
+
+TEST(EraseTests, GivenNonEmptyIntArray_MultipleElementsAreErased)
+{
+	Vector<int> intArray(20);
+
+	for (int i = 0; i < 20; ++i)
+	{
+		intArray[i] = i;
+	}
+
+	// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19
+
+	intArray.erase(intArray.begin() + 10); // Becomes: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19
+	intArray.erase(intArray.begin() + 10, intArray.begin() + 15);  // Becomes: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 16, 17, 18, 19
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 14);
+	EXPECT_EQ(intArray[9], 9);
+	EXPECT_EQ(intArray[13], 19);
+
+	intArray.erase(intArray.begin() + 1, intArray.begin() + 5);  // Becomes: 0, 5, 6, 7, 8, 9, 16, 17, 18, 19
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 10);
+	EXPECT_EQ(intArray[0], 0);
+	EXPECT_EQ(intArray[1], 5);
+	EXPECT_EQ(intArray[9], 19);
+
+	intArray.erase(intArray.begin() + 7, intArray.begin() + 10);  // Becomes: 0, 5, 6, 7, 8, 9, 16
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 7);
+	EXPECT_EQ(intArray[0], 0);
+	EXPECT_EQ(intArray[1], 5);
+	EXPECT_EQ(intArray[6], 16);
+}
+
+TEST(EraseTests, GivenNonEmptyTestObjectArray_MultipleElementsAreErased)
+{
+	Vector<TestObject> toArray(20);
+	for (int i = 0; i < 20; i++)
+	{
+		toArray[i] = TestObject(i);
+	}
+
+	toArray.erase(toArray.begin() + 10);
+	EXPECT_TRUE(toArray.validate());
+	EXPECT_EQ(toArray.size(), 19);
+	EXPECT_EQ(toArray[10], TestObject(11));
+
+	toArray.erase(toArray.begin() + 10, toArray.begin() + 15);
+	EXPECT_TRUE(toArray.validate());
+	EXPECT_EQ(toArray.size(), 14);
+	EXPECT_EQ(toArray[10], TestObject(16));
 }

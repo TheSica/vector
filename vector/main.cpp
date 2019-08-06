@@ -14,13 +14,32 @@ struct S
 	S& operator=(S&&) noexcept { puts("=(S&&)"); return *this; }
 };
 
-
-
 int main()
 {
 	testing::InitGoogleTest();
 	RUN_ALL_TESTS();
 
-	std::vector<S> base;
-	std::vector<S> t = base;
+/*	Vector<S> base;
+	base.push_back({});
+	base.push_back({});
+	base.push_back({});
+	base.push_back({});
+	base.push_back({});
+	std::cout << std::endl;
+	base.erase(base.begin());*/
+
+	Vector<int> base;
+	base.push_back(1);
+	base.push_back(2);
+	base.push_back(3);
+	base.push_back(4);
+	base.push_back(5);
+	std::cout << std::endl;
+
+	base.erase(base.begin()+2, base.begin()+4);
+
+	for (auto i : base)
+	{
+		std::cout << i << " ";
+	}
 }
