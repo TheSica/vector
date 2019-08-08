@@ -482,3 +482,58 @@ TEST(EraseTests, GivenNonEmptyTestObjectArray_MultipleElementsAreErased)
 	EXPECT_EQ(toArray.size(), 14);
 	EXPECT_EQ(toArray[10], TestObject(16));
 }
+
+TEST(AtTest, GivenNonEmptyArray_AtAccessorReturnsExpectedValue)
+{
+	Vector<int> intArray(20);
+
+	for (int i = 0; i < 20; ++i)
+	{
+		intArray[i] = i;
+	}
+
+	// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19
+
+	intArray.erase(intArray.begin() + 10); // Becomes: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19
+	intArray.erase(intArray.begin() + 10, intArray.begin() + 15);  // Becomes: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 16, 17, 18, 19
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 14);
+	EXPECT_EQ(intArray.at(9), 9);
+	EXPECT_EQ(intArray.at(13), 19);
+
+	intArray.erase(intArray.begin() + 1, intArray.begin() + 5);  // Becomes: 0, 5, 6, 7, 8, 9, 16, 17, 18, 19
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 10);
+	EXPECT_EQ(intArray.at(0), 0);
+	EXPECT_EQ(intArray.at(1), 5);
+	EXPECT_EQ(intArray.at(9), 19);
+
+	intArray.erase(intArray.begin() + 7, intArray.begin() + 10);  // Becomes: 0, 5, 6, 7, 8, 9, 16
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 7);
+	EXPECT_EQ(intArray.at(0), 0);
+	EXPECT_EQ(intArray.at(1), 5);
+	EXPECT_EQ(intArray.at(6), 16);
+}
+
+TEST(AtTest, GivenNonEmptyArray_AtAccessorModifiesValue)
+{
+	Vector<int> intArray(20);
+
+	for (int i = 0; i < 20; ++i)
+	{
+		intArray[i] = i;
+	}
+
+	// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19
+
+	intArray.at(5) = 99;
+	EXPECT_EQ(intArray.at(5), 99);
+}
+
+TEST(AtTest, GivenNonEmptyArray_AtAccessorThrowsWhenOutOfRange)
+{
+	Vector<int> intArray(3);
+
+	EXPECT_THROW(intArray.at(99), std::out_of_range);
+}

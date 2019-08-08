@@ -9,14 +9,14 @@ template<typename T>
 class Vector
 {
 public:
-	typedef T*				iterator;
-	typedef const T*		const_iterator;
+	typedef T* iterator;
+	typedef const T* const_iterator;
 
-	typedef T&				reference;
-	typedef const T&		const_reference;
+	typedef T& reference;
+	typedef const T& const_reference;
 
-	typedef T*				pointer;
-	typedef const T*		const_pointer;
+	typedef T* pointer;
+	typedef const T* const_pointer;
 
 public:
 	Vector();
@@ -36,10 +36,12 @@ public:
 	iterator erase(iterator pos, iterator last);
 
 	template<class... Args>
-	reference emplace_back(Args&&... args);
-public:
-	T& operator[](size_t n);
-	const T& operator[](size_t n) const;
+	reference emplace_back(Args&& ... args);
+
+	reference operator[](size_t n);
+	const_reference operator[](size_t n) const;
+	reference at(size_t n);
+	const_reference at(size_t n) const;
 
 public:
 	bool validate() const noexcept;
@@ -89,9 +91,13 @@ Vector<T>::Vector(size_t size)
 	_capacity(size),
 	_container(static_cast<T*>(_aligned_malloc(sizeof(T)* size, alignof(T))))
 {
-	for (size_t i = 0; i < size; ++i)
+	try
 	{
-		new (_container + i) T();
+
+		for (size_t i = 0; i < size; ++i)
+		{
+			new (_container + i) T();
+		}
 	}
 }
 
@@ -196,14 +202,9 @@ Vector<T>::erase(const_iterator position)
 		throw std::out_of_range("Vector::erase -- out of range");
 	}
 
-	auto destPositon = const_cast<T*>(position);
+	auto destPositon = const_cast<iterator>(position);
 
-	std::move(destPositon + 1, end(), destPositon);
-
-	back().~T();
-	_size -= 1;
-
-	return destPositon;
+	return erase(destPositon);
 }
 
 template<typename T>
@@ -234,7 +235,7 @@ Vector<T>::erase(iterator first, iterator last)
 template<typename T>
 template<class... Args>
 inline typename Vector<T>::reference
-Vector<T>::emplace_back(Args&&... args)
+Vector<T>::emplace_back(Args&& ... args)
 {
 	if (_size == _capacity)
 	{
@@ -271,7 +272,7 @@ void Vector<T>::resize()
 
 			_container = alloced_mem;
 		}
-		catch(...)
+		catch (...)
 		{
 			_aligned_free(try_alloc_mem);
 		}
@@ -297,25 +298,41 @@ inline bool operator==(const Vector<T>& a, const Vector<T>& b)
 }
 
 template<typename T>
-inline T& Vector<T>::operator[](size_t n)
+typename Vector<T>::reference
+Vector<T>::operator[](size_t n)
 {
-	if (n >= (static_cast<size_t>(end() - begin())))
-	{
-		throw std::out_of_range("Vector::operator[] -- out of range");
-	}
-
 	return *(begin() + n);
 }
 
 template<typename T>
-inline const T& Vector<T>::operator[](size_t n) const
+typename Vector<T>::const_reference
+Vector<T>::operator[](size_t n) const
+{
+	return *(begin() + n);
+}
+
+template<typename T>
+typename Vector<T>::reference
+Vector<T>::at(size_t n)
 {
 	if (n >= (static_cast<size_t>(end() - begin())))
 	{
 		throw std::out_of_range("Vector::operator[] -- out of range");
 	}
 
-	return *(begin() + n);
+	return _container[n];
+}
+
+template<typename T>
+typename Vector<T>::const_reference
+Vector<T>::at(size_t n) const
+{
+	if (n >= (static_cast<size_t>(end() - begin())))
+	{
+		throw std::out_of_range("Vector::operator[] -- out of range");
+	}
+
+	return _container[n];
 }
 
 template<typename T>
