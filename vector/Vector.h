@@ -4,6 +4,7 @@
 #include <cassert>
 #include <iostream>
 #include <malloc.h>
+#include <type_traits>
 
 template<typename T>
 class Vector
@@ -93,11 +94,15 @@ Vector<T>::Vector(size_t size)
 {
 	try
 	{
-
 		for (size_t i = 0; i < size; ++i)
 		{
 			new (_container + i) T();
 		}
+	}
+	catch (...)
+	{
+		cleanup();
+		throw;
 	}
 }
 
@@ -108,9 +113,16 @@ Vector<T>::Vector(const Vector<T>& other)
 	_capacity(other._size),
 	_container(static_cast<T*>(_aligned_malloc(sizeof(T)* other._size, alignof(T))))
 {
-	for (size_t i = 0; i < other._size; ++i)
+	try
 	{
-		push_back(other._container[i]);
+		for (size_t i = 0; i < other._size; ++i)
+		{
+			push_back(other._container[i]);
+		}
+	}
+	catch (...)
+	{
+		cleanup();
 	}
 }
 
@@ -137,7 +149,7 @@ Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 	if (&other != this)
 	{
 		Vector<T> tmp(other);
-		tmp.swap(*this);
+		tmp.swap(*this); // ? if tmp's ctor throws ?
 	}
 	return *this;
 }
@@ -257,6 +269,15 @@ void Vector<T>::cleanup()
 }
 
 template<typename T>
+struct resizer
+{
+	static void resize_specialized(void* mem){
+	}
+};
+
+
+
+template<typename T>
 void Vector<T>::resize()
 {
 	_capacity = std::max(static_cast<size_t>(2), _capacity * 2);
@@ -266,7 +287,7 @@ void Vector<T>::resize()
 		try
 		{
 			auto alloced_mem = static_cast<T*>(try_alloc_mem);
-			std::uninitialized_copy(begin(), end(), alloced_mem);
+			resize_specialized<T>(alloced_mem);
 
 			cleanup();
 
@@ -275,6 +296,7 @@ void Vector<T>::resize()
 		catch (...)
 		{
 			_aligned_free(try_alloc_mem);
+			throw;
 		}
 	}
 	else
