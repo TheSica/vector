@@ -10,14 +10,14 @@ template<typename T>
 class Vector
 {
 public:
-	typedef T* iterator;
-	typedef const T* const_iterator;
+	typedef				T* iterator;
+	typedef const		T* const_iterator;
 
-	typedef T& reference;
-	typedef const T& const_reference;
+	typedef				T& reference;
+	typedef const		T& const_reference;
 
-	typedef T* pointer;
-	typedef const T* const_pointer;
+	typedef				T* pointer;
+	typedef const		T* const_pointer;
 
 public:
 	Vector();
@@ -269,13 +269,16 @@ void Vector<T>::cleanup()
 }
 
 template<typename T>
-struct resizer
+std::enable_if_t<std::is_copy_assignable_v<T>> resize_specialized(T* begin, T* end, T* mem)
 {
-	static void resize_specialized(void* mem){
-	}
-};
+	std::uninitialized_copy(begin, end, mem);
+}
 
-
+template<typename T>
+std::enable_if_t<std::is_move_assignable_v<T>> resize_specialized(T* begin, T* end, T* mem)
+{
+	std::uninitialized_move(begin, end, mem);
+}
 
 template<typename T>
 void Vector<T>::resize()
@@ -287,7 +290,7 @@ void Vector<T>::resize()
 		try
 		{
 			auto alloced_mem = static_cast<T*>(try_alloc_mem);
-			resize_specialized<T>(alloced_mem);
+			resize_specialized(begin(), end(), alloced_mem);
 
 			cleanup();
 
