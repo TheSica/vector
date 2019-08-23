@@ -123,6 +123,7 @@ Vector<T>::Vector(const Vector<T>& other)
 	catch (...)
 	{
 		cleanup();
+		throw;
 	}
 }
 
@@ -269,15 +270,23 @@ void Vector<T>::cleanup()
 }
 
 template<typename T>
-void resize_specialized(T* first, T* last, T* dest, std::true_type)
+std::enable_if_t<std::disjunction_v<std::is_nothrow_move_constructible<T>, std::negation<std::is_copy_constructible<T>>>> resize_specialized(T* first, T* last, T* dest)
 {
 	std::uninitialized_move(first, last, dest);
 }
 
 template<typename T>
-void resize_specialized(T* first, T* last, T* dest, std::false_type)
+std::enable_if_t<std::conjunction_v<std::is_copy_constructible<T>, std::negation<std::is_nothrow_move_constructible<T>>>> resize_specialized(T* first, T* last, T* dest)
 {
-	std::uninitialized_copy(first, last, dest);
+	try
+	{
+		std::uninitialized_copy(first, last, dest);
+	}
+	catch (...)
+	{
+		_aligned_free(dest);
+		throw;
+	}
 }
 
 template<typename T>
@@ -290,9 +299,8 @@ void Vector<T>::resize()
 		try
 		{
 			auto alloced_mem = static_cast<T*>(try_alloc_mem);
-			
-			// constructible vs assignable
-			resize_specialized<T>(begin(), end(), alloced_mem, std::bool_constant<std::disjunction_v<std::is_nothrow_move_constructible<T>, std::negation<std::is_copy_constructible<T>>>>{});
+
+			resize_specialized<T>(begin(), end(), alloced_mem);
 
 			cleanup();
 

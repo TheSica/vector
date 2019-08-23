@@ -135,6 +135,17 @@ struct AntMetaDataRecord
 };
 typedef Vector<AntMetaDataRecord> MetadataRecords;
 
+struct StructWithDeletedMembers
+{
+	StructWithDeletedMembers() = default;
+	StructWithDeletedMembers(const StructWithDeletedMembers& other) = delete;
+	StructWithDeletedMembers(StructWithDeletedMembers&& other) = delete;
+	~StructWithDeletedMembers() = default;
+	StructWithDeletedMembers& operator=(const StructWithDeletedMembers& other) = default;
+	StructWithDeletedMembers& operator=(StructWithDeletedMembers&& other) = default;
+};
+//template class std::vector<StructWithDeletedMembers>;
+
 struct StructWithConstInt
 {
 	StructWithConstInt(const int& _i) : i(_i) {}
