@@ -69,7 +69,6 @@ private:
 	void cleanup();
 	void resize();
 	void swap(Vector<T>& other) noexcept;
-
 private:
 	size_t _size;
 	size_t _capacity;
@@ -105,7 +104,6 @@ Vector<T>::Vector(size_t size)
 		throw;
 	}
 }
-
 template<typename T>
 Vector<T>::Vector(const Vector<T>& other)
 	:
@@ -113,17 +111,25 @@ Vector<T>::Vector(const Vector<T>& other)
 	_capacity(other._size),
 	_container(static_cast<T*>(_aligned_malloc(sizeof(T)* other._size, alignof(T))))
 {
-	try
+	if constexpr (std::is_trivially_constructible_v<T>)
 	{
-		for (size_t i = 0; i < other._size; ++i)
+		try
 		{
-			push_back(other._container[i]);
+			for (_size = 0; _size < other._size; ++_size)
+			{
+				push_back(other._container[_size]);
+			}
+		}
+		catch (...)
+		{
+			cleanup();
+			throw;
 		}
 	}
-	catch (...)
+	else
 	{
-		cleanup();
-		throw;
+		std::memcpy(_container, other._container, other._size);
+		_size = other._size;
 	}
 }
 
@@ -150,7 +156,7 @@ Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 	if (&other != this)
 	{
 		Vector<T> tmp(other);
-		tmp.swap(*this); // ? if tmp's ctor throws ?
+		tmp.swap(*this);
 	}
 	return *this;
 }
@@ -270,13 +276,13 @@ void Vector<T>::cleanup()
 }
 
 template<typename T>
-std::enable_if_t<std::disjunction_v<std::is_nothrow_move_constructible<T>, std::negation<std::is_copy_constructible<T>>>> resize_specialized(T* first, T* last, T* dest)
+std::enable_if_t<std::is_nothrow_move_constructible_v<T>> resize_specialized(T* first, T* last, T* dest)
 {
 	std::uninitialized_move(first, last, dest);
 }
 
 template<typename T>
-std::enable_if_t<std::conjunction_v<std::is_copy_constructible<T>, std::negation<std::is_nothrow_move_constructible<T>>>> resize_specialized(T* first, T* last, T* dest)
+std::enable_if_t<std::is_copy_constructible_v<T> && !std::is_nothrow_move_constructible_v<T>> resize_specialized(T* first, T* last, T* dest)
 {
 	try
 	{
@@ -334,40 +340,40 @@ inline bool operator==(const Vector<T>& a, const Vector<T>& b)
 
 template<typename T>
 typename Vector<T>::reference
-Vector<T>::operator[](size_t n)
+Vector<T>::operator[](size_t index)
 {
-	return *(begin() + n);
+	return *(begin() + index);
 }
 
 template<typename T>
 typename Vector<T>::const_reference
-Vector<T>::operator[](size_t n) const
+Vector<T>::operator[](size_t index) const
 {
-	return *(begin() + n);
+	return *(begin() + index);
 }
 
 template<typename T>
 typename Vector<T>::reference
-Vector<T>::at(size_t n)
+Vector<T>::at(size_t index)
 {
-	if (n >= (static_cast<size_t>(end() - begin())))
+	if (index >= (static_cast<size_t>(end() - begin())))
 	{
-		throw std::out_of_range("Vector::operator[] -- out of range");
+		throw std::out_of_range("Vector::at -- out of range");
 	}
 
-	return _container[n];
+	return _container[index];
 }
 
 template<typename T>
 typename Vector<T>::const_reference
-Vector<T>::at(size_t n) const
+Vector<T>::at(size_t index) const
 {
-	if (n >= (static_cast<size_t>(end() - begin())))
+	if (index >= (static_cast<size_t>(end() - begin())))
 	{
-		throw std::out_of_range("Vector::operator[] -- out of range");
+		throw std::out_of_range("Vector::at -- out of range");
 	}
 
-	return _container[n];
+	return _container[index];
 }
 
 template<typename T>
@@ -421,49 +427,38 @@ template<typename T>
 inline typename Vector<T>::reference
 Vector<T>::front()
 {
-	if (_container + _size <= _container)
-	{
-		throw std::range_error("vector::front -- empty vector");
-	}
-
-	return *_container;
+	return const_cast<reference>(std::as_const(*this).front());
 }
 
 template<typename T>
 inline typename Vector<T>::const_reference
 Vector<T>::front() const
 {
-	if (_container + _size <= _container)
+	if (empty())
 	{
 		throw std::range_error("vector::front -- empty vector");
 	}
 
-	return *_container;
+	return *begin();
 }
 
 template<typename T>
 inline typename Vector<T>::reference
 Vector<T>::back()
 {
-	if (_container + _size <= _container)
-	{
-		throw std::range_error("vector::front -- empty vector");
-	}
-
-	return *(_container + _size - 1);
+	return const_cast<reference>(std::as_const(*this).back());
 }
-
 
 template<typename T>
 inline typename Vector<T>::const_reference
 Vector<T>::back() const
 {
-	if (_container + _size <= _container)
+	if (empty())
 	{
-		throw std::range_error("vector::front -- empty vector");
+		throw std::range_error("vector::back -- empty vector");
 	}
 
-	return *(_container + _size - 1);
+	return *std::prev(end());
 }
 
 template<typename T>
