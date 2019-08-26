@@ -69,6 +69,7 @@ private:
 	void cleanup();
 	void resize();
 	void swap(Vector<T>& other) noexcept;
+	void memcopy_trivially(T* src, T* dest, size_t size);
 private:
 	size_t _size;
 	size_t _capacity;
@@ -104,6 +105,7 @@ Vector<T>::Vector(size_t size)
 		throw;
 	}
 }
+
 template<typename T>
 Vector<T>::Vector(const Vector<T>& other)
 	:
@@ -111,13 +113,17 @@ Vector<T>::Vector(const Vector<T>& other)
 	_capacity(other._size),
 	_container(static_cast<T*>(_aligned_malloc(sizeof(T)* other._size, alignof(T))))
 {
-	if constexpr (std::is_trivially_constructible_v<T>)
+	if constexpr (std::is_trivially_copyable_v<T>)
+	{
+		memcopy_trivially(_container, other._container, other._size);
+	}
+	else
 	{
 		try
 		{
-			for (_size = 0; _size < other._size; ++_size)
+			for (_size = 0; _size < other._size;)
 			{
-				push_back(other._container[_size]);
+				push_back(std::forward<T>(other._container[_size]));
 			}
 		}
 		catch (...)
@@ -125,11 +131,6 @@ Vector<T>::Vector(const Vector<T>& other)
 			cleanup();
 			throw;
 		}
-	}
-	else
-	{
-		std::memcpy(_container, other._container, other._size);
-		_size = other._size;
 	}
 }
 
@@ -270,7 +271,10 @@ Vector<T>::emplace_back(Args&& ... args)
 template<typename T>
 void Vector<T>::cleanup()
 {
-	std::destroy(begin(), end());
+	if constexpr (!std::is_trivially_destructible_v<T>)
+	{
+		std::destroy(begin(), end());
+	}
 
 	_aligned_free(_container);
 }
@@ -306,7 +310,14 @@ void Vector<T>::resize()
 		{
 			auto alloced_mem = static_cast<T*>(try_alloc_mem);
 
-			resize_specialized<T>(begin(), end(), alloced_mem);
+			if constexpr (std::is_trivially_copyable_v<T>)
+			{
+				memcopy_trivially(alloced_mem, _container, _size);
+			}
+			else
+			{
+				resize_specialized<T>(begin(), end(), alloced_mem);
+			}
 
 			cleanup();
 
@@ -330,6 +341,13 @@ inline void Vector<T>::swap(Vector<T>& other) noexcept
 	std::swap(_size, other._size);
 	std::swap(_capacity, other._capacity);
 	std::swap(_container, other._container);
+}
+
+template<typename T>
+void Vector<T>::memcopy_trivially(T* dest, T* src, size_t size)
+{
+	std::memcpy(dest, src, size * sizeof(T));
+	_size = size;
 }
 
 template<typename T>
