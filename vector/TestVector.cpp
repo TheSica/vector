@@ -75,7 +75,7 @@ int     TestObject::sMagicErrorCount = 0;
 #ifdef __cplusplus
 struct EANonCopyable
 {
-#if defined(EA_COMPILER_NO_DEFAULTED_FUNCTIONS) || defined(__EDG__) // EDG doesn't appear to behave properly for the case of defaulted constructors; it generates a mistaken warning about missing default constructors.
+#if defined(EA_COMPILER_NO_DEFAULTED_FUNCTIONS) || defined(__EDG__) // EDG doesn't appear to behave properly for the case of defaulted constructors; it generates a mistaken warning about missing default `s.
 	EANonCopyable() {} // Putting {} here has the downside that it allows a class to create itself, 
 	~EANonCopyable() {} // but avoids linker errors that can occur with some compilers (e.g. Green Hills).
 #else
@@ -242,8 +242,17 @@ TYPED_TEST_P(VectorTest, GivenNonEmptyVector_SizeIsCorrect)
 
 TYPED_TEST_P(VectorTest, GivenEmptyVector_DestructorWorks)
 {
-	auto intArray = new Vector<TypeParam>();
-	EXPECT_NO_FATAL_FAILURE(delete intArray);
+	auto vector = new Vector<TypeParam>();
+	EXPECT_NO_FATAL_FAILURE(delete vector);
+}
+
+TYPED_TEST_P(VectorTest, GivenEmptyArray_ResizeAllocatesTheCorrectSize)
+{
+	Vector<TypeParam> vector;
+
+	vector.reserve(100);
+
+	EXPECT_EQ(vector.capacity(), 100);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(VectorTest,
@@ -252,11 +261,29 @@ REGISTER_TYPED_TEST_SUITE_P(VectorTest,
 	GivenNonEmptyVector_CopyAssignmentOperatorWorks,
 	GivenNonEmptyVector_SizeIsCorrect,
 	GivenEmptyVector_DestructorWorks,
-	GivenEmptyVector_CopyAssignmentOperatorWorks
+	GivenEmptyVector_CopyAssignmentOperatorWorks,
+	GivenEmptyArray_ResizeAllocatesTheCorrectSize
 );
 
 using TestTypes = ::testing::Types<int, TestObject, std::list<TestObject>>;
 INSTANTIATE_TYPED_TEST_CASE_P(ContainerTypesInstantiation, VectorTest, TestTypes);
+
+TEST(ConstructorTests, GivenTestObjectVetor_MoveConstructorWorks)
+{
+	TestObject::Reset();
+
+	Vector<TestObject> vec;
+	TestObject to(33);
+
+	vec.push_back(to);
+	vec.push_back(to);
+	vec.push_back(to);
+
+	Vector<TestObject> toVectorA(std::move(vec));
+	EXPECT_EQ(toVectorA.size(), 3);
+	EXPECT_EQ(toVectorA.front().mX, 33);
+	EXPECT_EQ(vec.size(), 0);
+}
 
 TEST(AtOperator, GivenNonEmptyArray_AtOperatorWorks)
 {
@@ -273,7 +300,7 @@ TEST(AtOperator, GivenNonEmptyArray_AtOperatorThrowsWhenOutOfRange)
 
 	try
 	{
-		TestObject& r01 = vec01[6];
+		TestObject& r01 = vec01.at(6);
 		EXPECT_TRUE(!(r01 == TestObject(0)));  // Should not get here, as exception thrown.
 	}
 	catch (std::out_of_range&)
@@ -311,7 +338,7 @@ TEST(PushBackTests, GivenAntMetaDataRecord_PushBackWorksOnMetadataRecords)
 	EXPECT_NO_FATAL_FAILURE(mMetadataRecords.push_back(s));
 }
 
-TEST(PushBackTests, T)
+TEST(PushBackTests, GivenNonEmptyArray_PushBackInsertsElementsAtExpectedPositions)
 {
 	Vector<int> intArray(6);
 
@@ -323,52 +350,6 @@ TEST(PushBackTests, T)
 	EXPECT_TRUE(intArray.validate());
 	EXPECT_EQ(intArray.size(), 105);
 	EXPECT_EQ(intArray[76], 99);
-}
-
-TEST(ConstructorTests, GivenTestObjectVetor_MoveConstructorWorks)
-{
-	TestObject::Reset();
-
-	Vector<TestObject> vec;
-	TestObject to(33);
-
-	vec.push_back(to);
-	vec.push_back(to);
-	vec.push_back(to);
-
-	Vector<TestObject> toVectorA(std::move(vec));
-	EXPECT_EQ(toVectorA.size(), 3);
-	EXPECT_EQ(toVectorA.front().mX, 33);
-	EXPECT_EQ(vec.size(), 0);
-}
-
-TEST(IteratorTests, GivenNonEmptyVector_AccessorsWork)
-{
-	Vector<int> intArray(10);
-	intArray[0] = 10;
-	intArray[1] = 11;
-	intArray[2] = 12;
-
-	EXPECT_TRUE(intArray.data() == &intArray[0]);
-	EXPECT_TRUE(*intArray.data() == 10);
-	EXPECT_TRUE(intArray.front() == 10);
-	EXPECT_TRUE(intArray.back() == 0);
-}
-
-TEST(IteratorTests, GivenNonEmptyVector_AccessIteratorsWork)
-{
-	Vector<int> intArray(20);
-	int i = 0;
-	for (i = 0; i < 20; ++i)
-	{
-		intArray[i] = i;
-	}
-
-	i = 0;
-	for (Vector<int>::iterator it = intArray.begin(); it != intArray.end(); ++it, ++i)
-	{
-		EXPECT_TRUE(*it == i);
-	}
 }
 
 TEST(EmplaceBackTests, GivenItemWithConstMembers_EmplacBackWorks)
@@ -406,6 +387,35 @@ TEST(EmplaceBackTests, GivenTestObjectVector_ASingleObjectIsConstructed)
 
 	toVectorA.emplace_back(2, 3, 4);
 	EXPECT_EQ(TestObject::sTOCtorCount, 1);
+}
+
+TEST(IteratorTests, GivenNonEmptyVector_AccessorsWork)
+{
+	Vector<int> intArray(10);
+	intArray[0] = 10;
+	intArray[1] = 11;
+	intArray[2] = 12;
+
+	EXPECT_TRUE(intArray.data() == &intArray[0]);
+	EXPECT_TRUE(*intArray.data() == 10);
+	EXPECT_TRUE(intArray.front() == 10);
+	EXPECT_TRUE(intArray.back() == 0);
+}
+
+TEST(IteratorTests, GivenNonEmptyVector_AccessIteratorsWork)
+{
+	Vector<int> intArray(20);
+	int i = 0;
+	for (i = 0; i < 20; ++i)
+	{
+		intArray[i] = i;
+	}
+
+	i = 0;
+	for (Vector<int>::iterator it = intArray.begin(); it != intArray.end(); ++it, ++i)
+	{
+		EXPECT_TRUE(*it == i);
+	}
 }
 
 TEST(EraseTests, GivenNonEmptyIntArray_SingleElementIsErased)
@@ -494,6 +504,39 @@ TEST(EraseTests, GivenNonEmptyTestObjectArray_MultipleElementsAreErased)
 	EXPECT_EQ(toArray[10], TestObject(16));
 }
 
+TEST(EraseTests, GivenNonEmptyArray_GivenElementsToRemove_ElementsAreRemovedSuccessfully)
+{
+	const int valueToRemove = 44;
+	int testValues[] = { 42, 43, 44, 45, 46, 47 };
+
+	Vector<std::unique_ptr<int>> v;
+
+	for (auto testElement : testValues)
+	{
+		v.push_back(std::make_unique<int>(testElement));
+	}
+
+	// remove 'valueToRemove' from the container
+	auto iterToRemove = std::find_if(v.begin(), v.end(), [valueToRemove](std::unique_ptr<int>& e) { return *e == valueToRemove; });
+
+	v.erase(iterToRemove);
+	EXPECT_EQ(v.size(), 5);
+
+	// verify 'valueToRemove' is no longer in the container
+	EXPECT_TRUE(std::find_if(v.begin(), v.end(), [valueToRemove](std::unique_ptr<int>& e) { return *e == valueToRemove; }) == v.end());
+
+	// verify all other expected values are in the container
+	for (auto testElement : testValues)
+	{
+		if (testElement == valueToRemove)
+		{
+			continue;
+		}
+
+		EXPECT_TRUE(std::find_if(v.begin(), v.end(), [testElement](std::unique_ptr<int>& e) { return *e == testElement; }) != v.end());
+	}
+}
+
 TEST(AtTest, GivenNonEmptyArray_AtAccessorReturnsExpectedValue)
 {
 	Vector<int> intArray(20);
@@ -547,4 +590,30 @@ TEST(AtTest, GivenNonEmptyArray_AtAccessorThrowsWhenOutOfRange)
 	Vector<int> intArray(3);
 
 	EXPECT_THROW(intArray.at(99), std::out_of_range);
+}
+
+TEST(ReserveTest, GivenNonEmptyArray_ReserveKeepsTheElementsAtTheSamePosition)
+{
+	Vector<int> intArray;
+
+	for (int i = 0; i < 1500; ++i)
+	{
+		intArray.push_back(i);
+	}
+
+	intArray.reserve(intArray.capacity() * 2);
+
+	for (int i = 0; i < intArray.size(); ++i)
+	{
+		EXPECT_EQ(i, intArray[i]);
+	}
+}
+
+TEST(InsertTest, T)
+{
+	Vector<int> intArray(5);
+
+	//intArray.insert(intArray.begin(), 99);
+
+
 }

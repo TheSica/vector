@@ -21,7 +21,7 @@ public:
 
 public:
 	Vector();
-	explicit Vector(size_t size);
+	explicit Vector(const size_t size);
 	Vector(const Vector<T>& other);
 	Vector(Vector<T>&& other) noexcept;
 	~Vector();
@@ -29,25 +29,31 @@ public:
 	Vector<T>& operator=(Vector<T>&& other) noexcept;
 
 public:
+	template<class... Args>
+	reference emplace_back(Args&& ... args);
+
 	void push_back(const T& element);
 	void push_back(T&& element);
+
+	iterator insert(iterator pos, const T& value);
+	iterator insert(iterator pos, T&& value);
 
 	iterator erase(iterator pos);
 	const_iterator erase(const_iterator pos);
 	iterator erase(iterator pos, iterator last);
 
-	template<class... Args>
-	reference emplace_back(Args&& ... args);
+	reference operator[](const size_t n);
+	const_reference operator[](const size_t n) const;
 
-	reference operator[](size_t n);
-	const_reference operator[](size_t n) const;
-	reference at(size_t n);
-	const_reference at(size_t n) const;
+	reference at(const size_t n);
+	const_reference at(const size_t n) const;
 
 public:
 	bool validate() const noexcept;
 	bool empty() const noexcept;
 	size_t size() const noexcept;
+	size_t capacity() const noexcept;
+	void reserve(const size_t newCappacity);
 
 public:
 	iterator				begin() noexcept;
@@ -67,9 +73,10 @@ public:
 
 private:
 	void cleanup();
+	void reallocate(const size_t desiredCapacity);
 	void resize();
 	void swap(Vector<T>& other) noexcept;
-	void memcopy_trivially(T* src, T* dest, size_t size);
+	void memcopy_trivially(T* src, T* dest, const size_t size);
 private:
 	size_t _size;
 	size_t _capacity;
@@ -86,7 +93,7 @@ Vector<T>::Vector()
 }
 
 template<typename T>
-Vector<T>::Vector(size_t size)
+Vector<T>::Vector(const size_t size)
 	:
 	_size(size),
 	_capacity(size),
@@ -197,6 +204,67 @@ void Vector<T>::push_back(T&& element)
 }
 
 template<typename T>
+typename Vector<T>::iterator 
+Vector<T>::insert(iterator pos, const T& value)
+{
+	if (pos < begin() || pos >= end())
+	{
+		throw std::out_of_range("Vector::insert -- out of range");
+	}
+
+	if (pos == end() - 1)
+	{
+		push_back(value);
+
+		return end();
+	}
+
+	const size_t positionIndex = std::distance(begin(), pos);
+
+	if (_size == _capacity)
+	{
+		resize();
+	}
+
+	new(_container + _size) T(std::move(back()));
+	std::move_backward(begin() + positionIndex, end() - 1, begin() + positionIndex + 1);
+	new(begin() + positionIndex) T(std::move(value));
+
+	return pos;
+}
+
+template<typename T>
+typename Vector<T>::iterator
+Vector<T>::insert(iterator pos, T&& value)
+{
+	if (pos < begin() || pos > end())
+	{
+		throw std::out_of_range("Vector::insert -- out of range");
+	}
+
+
+	if (pos == end() - 1)
+	{
+		push_back(value);
+
+		return end();
+	}
+
+	const size_t positionIndex = std::distance(begin(), pos);
+
+	if (_size == _capacity)
+	{
+		resize();
+	}
+
+	new(_container + _size) T(std::forward<T>(value));
+	std::move_backward(begin() + positionIndex, end() - 1, begin() + positionIndex + 1);
+	new(begin() + positionIndex) T(std::move(value));
+
+	return pos;
+}
+
+template<typename T>
 typename Vector<T>::iterator
 Vector<T>::erase(iterator position)
 {
@@ -205,7 +273,7 @@ Vector<T>::erase(iterator position)
 		throw std::out_of_range("Vector::erase -- out of range");
 	}
 
-	std::move(position + 1, end(), position);
+	std::move(position + 1, end(), position); // perhaps move_backward would be better.
 
 	back().~T();
 	_size -= 1;
@@ -300,9 +368,9 @@ std::enable_if_t<std::is_copy_constructible_v<T> && !std::is_nothrow_move_constr
 }
 
 template<typename T>
-void Vector<T>::resize()
+inline void Vector<T>::reallocate(const size_t desiredCapacity)
 {
-	_capacity = std::max(static_cast<size_t>(2), _capacity * 2);
+	_capacity = desiredCapacity;
 
 	if (void* try_alloc_mem = _aligned_malloc(sizeof(T) * _capacity, alignof(T)))
 	{
@@ -336,6 +404,12 @@ void Vector<T>::resize()
 }
 
 template<typename T>
+void Vector<T>::resize()
+{
+	reallocate(std::max(static_cast<size_t>(2), _capacity * 2));
+}
+
+template<typename T>
 inline void Vector<T>::swap(Vector<T>& other) noexcept
 {
 	std::swap(_size, other._size);
@@ -344,7 +418,7 @@ inline void Vector<T>::swap(Vector<T>& other) noexcept
 }
 
 template<typename T>
-void Vector<T>::memcopy_trivially(T* dest, T* src, size_t size)
+void Vector<T>::memcopy_trivially(T* dest, T* src, const size_t size)
 {
 	std::memcpy(dest, src, size * sizeof(T));
 	_size = size;
@@ -358,21 +432,21 @@ inline bool operator==(const Vector<T>& a, const Vector<T>& b)
 
 template<typename T>
 typename Vector<T>::reference
-Vector<T>::operator[](size_t index)
+Vector<T>::operator[](const size_t index)
 {
 	return *(begin() + index);
 }
 
 template<typename T>
 typename Vector<T>::const_reference
-Vector<T>::operator[](size_t index) const
+Vector<T>::operator[](const size_t index) const
 {
 	return *(begin() + index);
 }
 
 template<typename T>
 typename Vector<T>::reference
-Vector<T>::at(size_t index)
+Vector<T>::at(const size_t index)
 {
 	if (index >= (static_cast<size_t>(end() - begin())))
 	{
@@ -384,7 +458,7 @@ Vector<T>::at(size_t index)
 
 template<typename T>
 typename Vector<T>::const_reference
-Vector<T>::at(size_t index) const
+Vector<T>::at(const size_t index) const
 {
 	if (index >= (static_cast<size_t>(end() - begin())))
 	{
@@ -411,6 +485,43 @@ template<typename T>
 inline size_t Vector<T>::size() const noexcept
 {
 	return _size;
+}
+
+template<typename T>
+inline size_t Vector<T>::capacity() const noexcept
+{
+	return _capacity;
+}
+
+template<typename T>
+inline void Vector<T>::reserve(const size_t newCappacity)
+{
+	if (newCappacity <= _capacity)
+	{
+		return;
+	}
+
+	if (!empty())
+	{
+		reallocate(newCappacity);
+	}
+	else if(empty() && _capacity > 0)
+	{
+		_aligned_free(_container);
+
+		_container = static_cast<T*>(_aligned_malloc(sizeof(T) * newCappacity, alignof(T)));
+	}
+	else if (empty() && _capacity == 0)
+	{
+		_container = static_cast<T*>(_aligned_malloc(sizeof(T) * newCappacity, alignof(T)));
+	}
+	else
+	{
+		// ?
+		throw;
+	}
+
+	_capacity = newCappacity;
 }
 
 template<typename T>
@@ -492,3 +603,4 @@ Vector<T>::data() noexcept
 {
 	return _container;
 }
+
