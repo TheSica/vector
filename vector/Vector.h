@@ -77,6 +77,9 @@ private:
 	void resize();
 	void swap(Vector<T>& other) noexcept;
 	void memcopy_trivially(T* src, T* dest, const size_t size);
+	template<class... Args>
+	void emplace_back_internal(Args&&... element);
+
 private:
 	size_t _size;
 	size_t _capacity;
@@ -187,7 +190,7 @@ void Vector<T>::push_back(const T& element)
 		resize();
 	}
 
-	new(_container + _size) T(element);
+	emplace_back_internal(element);
 	_size += 1;
 }
 
@@ -199,12 +202,12 @@ void Vector<T>::push_back(T&& element)
 		resize();
 	}
 
-	new(_container + _size) T(std::move(element));
+	emplace_back_internal(std::move(element));
 	_size += 1;
 }
 
 template<typename T>
-typename Vector<T>::iterator 
+typename Vector<T>::iterator
 Vector<T>::insert(iterator pos, const T& value)
 {
 	if (pos < begin() || pos >= end())
@@ -212,7 +215,7 @@ Vector<T>::insert(iterator pos, const T& value)
 		throw std::out_of_range("Vector::insert -- out of range");
 	}
 
-	if (pos == end() - 1)
+	if (pos == end())
 	{
 		push_back(value);
 
@@ -226,9 +229,30 @@ Vector<T>::insert(iterator pos, const T& value)
 		resize();
 	}
 
-	new(_container + _size) T(std::move(back()));
-	std::move_backward(begin() + positionIndex, end() - 1, begin() + positionIndex + 1);
-	new(begin() + positionIndex) T(std::move(value));
+	emplace_back_internal(back());
+
+	if constexpr (std::is_nothrow_move_assignable_v<T>)
+	{
+		std::move_backward(begin() + positionIndex, end() - 1, end());
+	}
+	else
+	{
+		Vector<T> tmp(*this);
+		try
+		{
+			std::copy_backward(begin() + positionIndex, end() - 1, end());
+		}
+		catch(...)
+		{
+			cleanup();
+			swap(tmp);
+			throw;
+		}
+	}
+
+	new(begin() + positionIndex) T(value);
+
+	_size += 1;
 
 	return pos;
 }
@@ -242,8 +266,7 @@ Vector<T>::insert(iterator pos, T&& value)
 		throw std::out_of_range("Vector::insert -- out of range");
 	}
 
-
-	if (pos == end() - 1)
+	if (pos == end())
 	{
 		push_back(value);
 
@@ -257,9 +280,30 @@ Vector<T>::insert(iterator pos, T&& value)
 		resize();
 	}
 
-	new(_container + _size) T(std::forward<T>(value));
-	std::move_backward(begin() + positionIndex, end() - 1, begin() + positionIndex + 1);
+	emplace_back_internal(back());
+
+	if constexpr (std::is_nothrow_move_assignable_v<T>)
+	{
+		std::move_backward(begin() + positionIndex, end() - 1, end());
+	}
+	else
+	{
+		Vector<T> tmp(*this);
+		try
+		{
+			std::copy_backward(begin() + positionIndex, end() - 1, end());
+		}
+		catch (...)
+		{
+			cleanup();
+			swap(tmp);
+			throw;
+		}
+	}
+
 	new(begin() + positionIndex) T(std::move(value));
+
+	_size += 1;
 
 	return pos;
 }
@@ -330,7 +374,7 @@ Vector<T>::emplace_back(Args&& ... args)
 		resize();
 	}
 
-	new(_container + _size) T(std::forward<Args>(args)...);
+	emplace_back_internal(std::forward<Args>(args)...);
 	_size += 1;
 
 	return back();
@@ -425,6 +469,13 @@ void Vector<T>::memcopy_trivially(T* dest, T* src, const size_t size)
 }
 
 template<typename T>
+template<class... Args>
+inline void Vector<T>::emplace_back_internal(Args&&... element)
+{
+	new(_container + _size) T(std::forward<Args>(element)...);
+}
+
+template<typename T>
 inline bool operator==(const Vector<T>& a, const Vector<T>& b)
 {
 	return ((a.size() == b.size()) && std::equal(a.begin(), a.end(), b.begin()));
@@ -505,7 +556,7 @@ inline void Vector<T>::reserve(const size_t newCappacity)
 	{
 		reallocate(newCappacity);
 	}
-	else if(empty() && _capacity > 0)
+	else if (empty() && _capacity > 0)
 	{
 		_aligned_free(_container);
 

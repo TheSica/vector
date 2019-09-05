@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "Vector.h"
 #include "TestObject.h"
+#include <cstdarg>
 
 int64_t TestObject::sTOCount = 0;
 int64_t TestObject::sTOCtorCount = 0;
@@ -85,6 +86,72 @@ struct EANonCopyable
 	EA_NON_COPYABLE(EANonCopyable)
 };
 #endif
+
+/// VerifySequence
+///
+/// Allows the user to specify that a container has a given set of values.
+/// 
+/// Example usage:
+///    vector<int> v;
+///    v.push_back(1); v.push_back(3); v.push_back(5);
+///    VerifySequence(v.begin(), v.end(), int(), "v.push_back", 1, 3, 5, -1);
+///
+/// Note: The StackValue template argument is a hint to the compiler about what type 
+///       the passed vararg sequence is.
+///
+template <typename InputIterator, typename StackValue>
+bool VerifySequence(InputIterator first, InputIterator last, StackValue /*unused*/, const char* pName, ...)
+{
+	typedef typename std::iterator_traits<InputIterator>::value_type value_type;
+
+	int        argIndex = 0;
+	int        seqIndex = 0;
+	bool       bReturnValue = true;
+	StackValue next;
+
+	va_list args;
+	va_start(args, pName);
+
+	for (; first != last; ++first, ++argIndex, ++seqIndex)
+	{
+		next = va_arg(args, StackValue);
+
+		if ((next == StackValue(-1)) || !(value_type(next) == *first))
+		{
+			if (pName)
+				std::printf("[%s] Mismatch at index %d\n", pName, argIndex);
+			else
+				std::printf("Mismatch at index %d\n", argIndex);
+			bReturnValue = false;
+		}
+	}
+
+	for (; first != last; ++first)
+		++seqIndex;
+
+	if (bReturnValue)
+	{
+		next = va_arg(args, StackValue);
+
+		if (!(next == StackValue(-1)))
+		{
+			do {
+				++argIndex;
+				next = va_arg(args, StackValue);
+			} while (!(next == StackValue(-1)));
+
+			if (pName)
+				std::printf("[%s] Too many elements: expected %d, found %d\n", pName, argIndex, seqIndex);
+			else
+				std::printf("Too many elements: expected %d, found %d\n", argIndex, seqIndex);
+			bReturnValue = false;
+		}
+	}
+
+	va_end(args);
+
+	return bReturnValue;
+}
 
 // Template instantations.
 // These tell the compiler to compile all the functions for the given class.
@@ -255,6 +322,23 @@ TYPED_TEST_P(VectorTest, GivenEmptyArray_ResizeAllocatesTheCorrectSize)
 	EXPECT_EQ(vector.capacity(), 100);
 }
 
+TYPED_TEST_P(VectorTest, GivenEmptyArray_InsertWorksForTestTypes)
+{
+	Vector<TypeParam> vector(100);
+
+	vector.insert(vector.begin() + 19, TypeParam());
+}
+
+TYPED_TEST_P(VectorTest, InsertStressTest)
+{
+	Vector<TypeParam> vector;
+
+	for (int i = 0; i < 10000; ++i)
+	{
+		vector.insert(vector.begin() + i, TypeParam());
+	}
+}
+
 REGISTER_TYPED_TEST_SUITE_P(VectorTest,
 	GivenDefaultConstructedVector_IsEmptyAndValid,
 	GivenCopyConstructedVector_IsEqualAndValid,
@@ -262,7 +346,9 @@ REGISTER_TYPED_TEST_SUITE_P(VectorTest,
 	GivenNonEmptyVector_SizeIsCorrect,
 	GivenEmptyVector_DestructorWorks,
 	GivenEmptyVector_CopyAssignmentOperatorWorks,
-	GivenEmptyArray_ResizeAllocatesTheCorrectSize
+	GivenEmptyArray_ResizeAllocatesTheCorrectSize,
+	GivenEmptyArray_InsertWorksForTestTypes,
+	InsertStressTest
 );
 
 using TestTypes = ::testing::Types<int, TestObject, std::list<TestObject>>;
@@ -609,11 +695,89 @@ TEST(ReserveTest, GivenNonEmptyArray_ReserveKeepsTheElementsAtTheSamePosition)
 	}
 }
 
-TEST(InsertTest, T)
+TEST(InsertTest, GivenNonEmptyArray_InsertEmplacesElementAtTheRightPosition)
 {
-	Vector<int> intArray(5);
+	Vector<TestObject> toVectorC;
 
-	//intArray.insert(intArray.begin(), 99);
+	toVectorC.push_back(TestObject(2, 3, 4));
+	EXPECT_TRUE((toVectorC.size() == 1) && (toVectorC.back().mX == (2 + 3 + 4)) && (TestObject::sTOMoveCtorCount == 1));
 
+	toVectorC.insert(toVectorC.begin(), TestObject(3, 4, 5));
+	EXPECT_EQ(toVectorC.size(), 2);
+	EXPECT_EQ(toVectorC.front().mX , (3 + 4 + 5));
+	EXPECT_EQ(TestObject::sTOMoveCtorCount, 3);				// 3 because the original count of 1, plus the existing
+															// vector element will be moved, plus the one being emplaced.
+}
 
+TEST(InsertTest, GivenNonEmptyArray_InsertingAtTheEndWorks)
+{
+	Vector<int> v;
+	v.reserve(7);
+	for (int i = 0; i < 7; ++i)
+	{
+		v.push_back(13);
+	}
+	
+	// insert at end of size and capacity.
+	v.insert(v.end(), 99);
+
+	EXPECT_TRUE(v.validate());
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 13, 13, 13, 13, 13, 13, 13, 99, -1));
+
+}
+TEST(InsertTest, GivenNonEmptyArray_InsertingAfterReserveWorks)
+{
+	Vector<int> v;
+	v.reserve(7);
+	for (int i = 0; i < 7; ++i)
+	{
+		v.push_back(13);
+	}
+
+	// insert at end of size and capacity.
+	v.insert(v.end(), 99);
+
+	// insert at end of size.
+	v.reserve(30);
+	v.insert(v.end(), 999);
+	EXPECT_TRUE(v.validate());
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 13, 13, 13, 13, 13, 13, 13, 99, 999, -1));
+}
+
+TEST(InsertTest, GivenNonEmptyArray_InsertingInTheMiddleWorks)
+{
+	Vector<int> v;
+	v.reserve(7);
+	for (int i = 0; i < 7; ++i)
+	{
+		v.push_back(13);
+	}
+
+	// insert at end of size and capacity.
+	v.insert(v.end(), 99);
+
+	// insert at end of size.
+	v.reserve(30);
+	v.insert(v.end(), 999);
+
+	Vector<int>::iterator it = v.begin() + 7;
+	it = v.insert(it, 49);
+	EXPECT_TRUE(v.validate());
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 13, 13, 13, 13, 13, 13, 13, 49, 99, 999, -1));
+}
+
+TEST(InsertTest, InsertWithReallocationWorks)
+{
+	Vector<int> v;
+	v.reserve(7);
+	for (int i = 0; i < 7; ++i)
+	{
+		v.push_back(13);
+	}
+
+	v.insert(v.begin(), 99);
+	v.insert(v.begin() + 7, 99);
+	v.insert(v.end(), 99);
+
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 99, 13, 13, 13, 13, 13, 13, 99, 13, 99, -1));
 }
