@@ -1,8 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <iostream>
-#include <malloc.h>
 #include <type_traits>
 
 template<typename T>
