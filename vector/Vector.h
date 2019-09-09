@@ -53,7 +53,7 @@ public:
 	bool empty() const noexcept;
 	size_t size() const noexcept;
 	size_t capacity() const noexcept;
-	void reserve(const size_t newCappacity);
+	void reserve(const size_t newCapacity);
 
 public:
 	iterator				begin() noexcept;
@@ -78,7 +78,9 @@ private:
 	void swap(Vector<T>& other) noexcept;
 	void memcopy_trivially(T* src, T* dest, const size_t size);
 	template<class... Args>
-	void emplace_back_internal(Args&&... element);
+	void emplace_back_internal(Args&& ... element);
+	template<class... U>
+	void emplace_internal(iterator pos, U&& ... value);
 
 private:
 	size_t _size;
@@ -104,7 +106,7 @@ Vector<T>::Vector(const size_t size)
 {
 	try
 	{
-		for (size_t i = 0; i < size; ++i)
+		for (size_t i = 0; i < size; i += 1)
 		{
 			new (_container + i) T();
 		}
@@ -131,9 +133,9 @@ Vector<T>::Vector(const Vector<T>& other)
 	{
 		try
 		{
-			for (_size = 0; _size < other._size;)
+			for (_size = 0; _size < other._size; _size += 1)
 			{
-				push_back(std::forward<T>(other._container[_size]));
+				emplace_back_internal(std::forward<T>(other._container[_size]));
 			}
 		}
 		catch (...)
@@ -210,47 +212,7 @@ template<typename T>
 typename Vector<T>::iterator
 Vector<T>::insert(iterator pos, const T& value)
 {
-	if (pos < begin() || pos >= end())
-	{
-		throw std::out_of_range("Vector::insert -- out of range");
-	}
-
-	if (pos == end())
-	{
-		push_back(value);
-
-		return end();
-	}
-
-	const size_t positionIndex = std::distance(begin(), pos);
-
-	if (_size == _capacity)
-	{
-		resize();
-	}
-
-	emplace_back_internal(back());
-
-	if constexpr (std::is_nothrow_move_assignable_v<T>)
-	{
-		std::move_backward(begin() + positionIndex, end() - 1, end());
-	}
-	else
-	{
-		Vector<T> tmp(*this);
-		try
-		{
-			std::copy_backward(begin() + positionIndex, end() - 1, end());
-		}
-		catch(...)
-		{
-			cleanup();
-			swap(tmp);
-			throw;
-		}
-	}
-
-	new(begin() + positionIndex) T(value);
+	emplace_internal(pos, value);
 
 	_size += 1;
 
@@ -261,47 +223,7 @@ template<typename T>
 typename Vector<T>::iterator
 Vector<T>::insert(iterator pos, T&& value)
 {
-	if (pos < begin() || pos > end())
-	{
-		throw std::out_of_range("Vector::insert -- out of range");
-	}
-
-	if (pos == end())
-	{
-		push_back(value);
-
-		return end();
-	}
-
-	const size_t positionIndex = std::distance(begin(), pos);
-
-	if (_size == _capacity)
-	{
-		resize();
-	}
-
-	emplace_back_internal(back());
-
-	if constexpr (std::is_nothrow_move_assignable_v<T>)
-	{
-		std::move_backward(begin() + positionIndex, end() - 1, end());
-	}
-	else
-	{
-		Vector<T> tmp(*this);
-		try
-		{
-			std::copy_backward(begin() + positionIndex, end() - 1, end());
-		}
-		catch (...)
-		{
-			cleanup();
-			swap(tmp);
-			throw;
-		}
-	}
-
-	new(begin() + positionIndex) T(std::move(value));
+	emplace_internal(pos, std::move(value));
 
 	_size += 1;
 
@@ -317,7 +239,7 @@ Vector<T>::erase(iterator position)
 		throw std::out_of_range("Vector::erase -- out of range");
 	}
 
-	std::move(position + 1, end(), position); // perhaps move_backward would be better.
+	std::move(position + 1, end(), position);
 
 	back().~T();
 	_size -= 1;
@@ -374,7 +296,7 @@ Vector<T>::emplace_back(Args&& ... args)
 		resize();
 	}
 
-	emplace_back_internal(std::forward<Args>(args)...);
+	emplace_back_internal(std::move(args)...);
 	_size += 1;
 
 	return back();
@@ -392,13 +314,13 @@ void Vector<T>::cleanup()
 }
 
 template<typename T>
-std::enable_if_t<std::is_nothrow_move_constructible_v<T>> resize_specialized(T* first, T* last, T* dest)
+std::enable_if_t<std::is_nothrow_move_constructible_v<T>> uninitialized_move_or_copy(T* first, T* last, T* dest)
 {
 	std::uninitialized_move(first, last, dest);
 }
 
 template<typename T>
-std::enable_if_t<std::is_copy_constructible_v<T> && !std::is_nothrow_move_constructible_v<T>> resize_specialized(T* first, T* last, T* dest)
+std::enable_if_t<std::is_copy_constructible_v<T> && !std::is_nothrow_move_constructible_v<T>> uninitialized_move_or_copy(T* first, T* last, T* dest)
 {
 	try
 	{
@@ -428,7 +350,7 @@ inline void Vector<T>::reallocate(const size_t desiredCapacity)
 			}
 			else
 			{
-				resize_specialized<T>(begin(), end(), alloced_mem);
+				uninitialized_move_or_copy<T>(begin(), end(), alloced_mem);
 			}
 
 			cleanup();
@@ -469,8 +391,60 @@ void Vector<T>::memcopy_trivially(T* dest, T* src, const size_t size)
 }
 
 template<typename T>
+template<class... U>
+void Vector<T>::emplace_internal(iterator pos, U&& ... value)
+{
+	if (pos < begin() || pos > end())
+	{
+		throw std::out_of_range("Vector::insert -- out of range");
+	}
+
+	if (pos == end())
+	{
+		if (_size == _capacity)
+		{
+			resize();
+		}
+
+		emplace_back_internal(value...);
+
+		return;
+	}
+
+	const size_t positionIndex = std::distance(begin(), pos);
+
+	if (_size == _capacity)
+	{
+		resize();
+	}
+
+	emplace_back_internal(back());
+
+	if constexpr (std::is_nothrow_move_assignable_v<T>)
+	{
+		std::move_backward(begin() + positionIndex, end() - 1, end());
+	}
+	else
+	{
+		Vector<T> tmp(*this);
+		try
+		{
+			std::copy_backward(begin() + positionIndex, end() - 1, end()); // does mempcy for trivial objects
+		}
+		catch (...)
+		{
+			cleanup();
+			swap(tmp);
+			throw;
+		}
+	}
+
+	new(begin() + positionIndex) T(std::forward<U>(value)...);
+}
+
+template<typename T>
 template<class... Args>
-inline void Vector<T>::emplace_back_internal(Args&&... element)
+inline void Vector<T>::emplace_back_internal(Args&& ... element)
 {
 	new(_container + _size) T(std::forward<Args>(element)...);
 }
@@ -522,7 +496,6 @@ Vector<T>::at(const size_t index) const
 template<typename T>
 inline bool Vector<T>::validate() const noexcept
 {
-	//return(begin() < end() && _capacity >= _size);
 	return (_capacity >= _size);
 }
 
@@ -545,26 +518,26 @@ inline size_t Vector<T>::capacity() const noexcept
 }
 
 template<typename T>
-inline void Vector<T>::reserve(const size_t newCappacity)
+inline void Vector<T>::reserve(const size_t newCapacity)
 {
-	if (newCappacity <= _capacity)
+	if (newCapacity <= _capacity)
 	{
 		return;
 	}
 
 	if (!empty())
 	{
-		reallocate(newCappacity);
+		reallocate(newCapacity);
 	}
 	else if (empty() && _capacity > 0)
 	{
 		_aligned_free(_container);
 
-		_container = static_cast<T*>(_aligned_malloc(sizeof(T) * newCappacity, alignof(T)));
+		_container = static_cast<T*>(_aligned_malloc(sizeof(T) * newCapacity, alignof(T)));
 	}
 	else if (empty() && _capacity == 0)
 	{
-		_container = static_cast<T*>(_aligned_malloc(sizeof(T) * newCappacity, alignof(T)));
+		_container = static_cast<T*>(_aligned_malloc(sizeof(T) * newCapacity, alignof(T)));
 	}
 	else
 	{
@@ -572,7 +545,7 @@ inline void Vector<T>::reserve(const size_t newCappacity)
 		throw;
 	}
 
-	_capacity = newCappacity;
+	_capacity = newCapacity;
 }
 
 template<typename T>
@@ -654,4 +627,3 @@ Vector<T>::data() noexcept
 {
 	return _container;
 }
-
