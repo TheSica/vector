@@ -766,7 +766,7 @@ TEST(InsertTest, GivenNonEmptyArray_InsertingInTheMiddleWorks)
 	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 13, 13, 13, 13, 13, 13, 13, 49, 99, 999, -1));
 }
 
-TEST(InsertTest, InsertWithReallocationWorks)
+TEST(InsertTest, GivenNonEmptyVector_InsertWithReallocationWorks)
 {
 	Vector<int> v;
 	v.reserve(7);
@@ -780,4 +780,26 @@ TEST(InsertTest, InsertWithReallocationWorks)
 	v.insert(v.end(), 99);
 
 	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 99, 13, 13, 13, 13, 13, 13, 99, 13, 99, -1));
+}
+
+TEST(InsertTest, GivenNonEmptyUniqueVector_InsertKeepsTheElement)
+{
+	Vector<int> v;
+	v.push_back(1);
+	v.push_back(2);
+	v.push_back(3);
+
+	v.insert(v.begin(), 0);
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 0, 1, 2, 3, -1));
+
+	v.insert(v.end(), 4);
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 0, 1, 2, 3, 4, -1));
+
+	v.insert(v.begin(), 99);
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 99, 0, 1, 2, 3, 4, -1));
+
+	v.insert(v.begin(), 19);
+	v.insert(v.begin(), 19);
+	v.insert(v.begin(), 19);
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert",19, 19, 19, 99, 0, 1, 2, 3, 4, -1));
 }

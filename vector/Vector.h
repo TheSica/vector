@@ -20,10 +20,10 @@ public:
     Vector();
     explicit Vector(const size_t size);
     Vector(const Vector<T>& other);
-    Vector(Vector<T>&& other) noexcept;
+    Vector(Vector<T>&& other) noexcept (std::is_nothrow_move_constructible_v<T>);
     ~Vector();
     Vector<T>& operator=(const Vector<T>& other);
-    Vector<T>& operator=(Vector<T>&& other) noexcept;
+    Vector<T>& operator=(Vector<T>&& other) noexcept(std::is_nothrow_move_assignable_v<T>);
 
 public:
     template<class... Args>
@@ -39,8 +39,8 @@ public:
     const_iterator erase(const_iterator pos);
     iterator erase(iterator pos, iterator last);
 
-    reference operator[](const size_t n);
-    const_reference operator[](const size_t n) const;
+    reference operator[](const size_t n) noexcept;
+    const_reference operator[](const size_t n) const noexcept;
 
     reference at(const size_t n);
     const_reference at(const size_t n) const;
@@ -55,9 +55,11 @@ public:
 public:
     iterator                   begin() noexcept;
     const_iterator             begin() const noexcept;
+    const_iterator             cbegin() const noexcept;
 
     iterator                   end() noexcept;
     const_iterator             end() const noexcept;
+    const_iterator             cend() const noexcept;
 
     reference                  front();
     const_reference            front() const;
@@ -97,15 +99,15 @@ Vector<T>::Vector()
 template<typename T>
 Vector<T>::Vector(const size_t size)
     :
-    _size(size),
+    _size(0),
     _capacity(size),
     _container(static_cast<T*>(_aligned_malloc(sizeof(T)* size, alignof(T))))
 {
     try
     {
-        for (size_t i = 0; i < size; i += 1)
+        for (; _size < _capacity; _size += 1)
         {
-            new (_container + i) T();
+            new (_container + _size) T();
         }
     }
     catch (...)
@@ -118,7 +120,7 @@ Vector<T>::Vector(const size_t size)
 template<typename T>
 Vector<T>::Vector(const Vector<T>& other)
     :
-    _size(0),
+    _size(other._size),
     _capacity(other._size),
     _container(static_cast<T*>(_aligned_malloc(sizeof(T)* other._size, alignof(T))))
 {
@@ -128,8 +130,11 @@ Vector<T>::Vector(const Vector<T>& other)
     }
     else
     {
-        try
+		std::uninitialized_copy(other.begin(), other.end(), _container);
+
+       /* try
         {
+			
             for (_size = 0; _size < other._size; _size += 1)
             {
                 emplace_back_internal(std::forward<T>(other._container[_size]));
@@ -139,18 +144,19 @@ Vector<T>::Vector(const Vector<T>& other)
         {
             cleanup();
             throw;
-        }
+        }*/
     }
 }
 
 template<typename T>
-Vector<T>::Vector(Vector<T>&& other) noexcept
+Vector<T>::Vector(Vector<T>&& other) noexcept (std::is_nothrow_move_constructible_v<T>)
     :
     _size(other._size),
     _capacity(other._capacity),
     _container(other._container)
 {
     other._size = 0;
+    other._capacity = 0;
     other._container = nullptr;
 }
 
@@ -172,7 +178,7 @@ Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 }
 
 template<typename T>
-Vector<T>& Vector<T>::operator=(Vector<T>&& other) noexcept
+Vector<T>& Vector<T>::operator=(Vector<T>&& other) noexcept(std::is_nothrow_move_assignable_v<T>)
 {
     if (&other != this)
     {
@@ -415,7 +421,7 @@ void Vector<T>::emplace_internal(iterator pos, U&& ... value)
         resize();
     }
 
-    emplace_back_internal(back());
+    emplace_back_internal(std::move(back()));
 
     if constexpr (std::is_nothrow_move_assignable_v<T>)
     {
@@ -454,14 +460,14 @@ inline bool operator==(const Vector<T>& a, const Vector<T>& b)
 
 template<typename T>
 typename Vector<T>::reference
-Vector<T>::operator[](const size_t index)
+Vector<T>::operator[](const size_t index) noexcept
 {
     return *(begin() + index);
 }
 
 template<typename T>
 typename Vector<T>::const_reference
-Vector<T>::operator[](const size_t index) const
+Vector<T>::operator[](const size_t index) const noexcept
 {
     return *(begin() + index);
 }
@@ -470,7 +476,7 @@ template<typename T>
 typename Vector<T>::reference
 Vector<T>::at(const size_t index)
 {
-    if (index >= (static_cast<size_t>(end() - begin())))
+    if (index >= size())
     {
         throw std::out_of_range("Vector::at -- out of range");
     }
@@ -482,7 +488,7 @@ template<typename T>
 typename Vector<T>::const_reference
 Vector<T>::at(const size_t index) const
 {
-    if (index >= (static_cast<size_t>(end() - begin())))
+    if (index >= size())
     {
         throw std::out_of_range("Vector::at -- out of range");
     }
@@ -560,6 +566,13 @@ Vector<T>::begin() const noexcept
 }
 
 template<typename T>
+typename Vector<T>::const_iterator
+Vector<T>::cbegin() const noexcept
+{
+    return _container;
+}
+
+template<typename T>
 inline typename Vector<T>::iterator
 Vector<T>::end() noexcept
 {
@@ -574,12 +587,19 @@ Vector<T>::end() const noexcept
 }
 
 template<typename T>
+typename Vector<T>::const_iterator
+Vector<T>::cend() const noexcept
+{
+    return _container + _size;
+}
+
+template<typename T>
 inline typename Vector<T>::reference
 Vector<T>::front()
 {
     return const_cast<reference>(std::as_const(*this).front());
 }
-
+    
 template<typename T>
 inline typename Vector<T>::const_reference
 Vector<T>::front() const
