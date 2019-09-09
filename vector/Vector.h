@@ -20,10 +20,10 @@ public:
     Vector();
     explicit Vector(const size_t size);
     Vector(const Vector<T>& other);
-    Vector(Vector<T>&& other) noexcept;
+    Vector(Vector<T>&& other) noexcept (std::is_nothrow_move_constructible_v<T>);
     ~Vector();
     Vector<T>& operator=(const Vector<T>& other);
-    Vector<T>& operator=(Vector<T>&& other) noexcept;
+    Vector<T>& operator=(Vector<T>&& other) noexcept(std::is_nothrow_move_assignable_v<T>);
 
 public:
     template<class... Args>
@@ -39,8 +39,8 @@ public:
     const_iterator erase(const_iterator pos);
     iterator erase(iterator pos, iterator last);
 
-    reference operator[](const size_t n);
-    const_reference operator[](const size_t n) const;
+    reference operator[](const size_t n) noexcept;
+    const_reference operator[](const size_t n) const noexcept;
 
     reference at(const size_t n);
     const_reference at(const size_t n) const;
@@ -55,9 +55,11 @@ public:
 public:
     iterator                   begin() noexcept;
     const_iterator             begin() const noexcept;
+    const_iterator             cbegin() const noexcept;
 
     iterator                   end() noexcept;
     const_iterator             end() const noexcept;
+    const_iterator             cend() const noexcept;
 
     reference                  front();
     const_reference            front() const;
@@ -144,7 +146,7 @@ Vector<T>::Vector(const Vector<T>& other)
 }
 
 template<typename T>
-Vector<T>::Vector(Vector<T>&& other) noexcept
+Vector<T>::Vector(Vector<T>&& other) noexcept (std::is_nothrow_move_constructible_v<T>)
     :
     _size(other._size),
     _capacity(other._capacity),
@@ -172,7 +174,7 @@ Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 }
 
 template<typename T>
-Vector<T>& Vector<T>::operator=(Vector<T>&& other) noexcept
+Vector<T>& Vector<T>::operator=(Vector<T>&& other) noexcept(std::is_nothrow_move_assignable_v<T>)
 {
     if (&other != this)
     {
@@ -454,14 +456,14 @@ inline bool operator==(const Vector<T>& a, const Vector<T>& b)
 
 template<typename T>
 typename Vector<T>::reference
-Vector<T>::operator[](const size_t index)
+Vector<T>::operator[](const size_t index) noexcept
 {
     return *(begin() + index);
 }
 
 template<typename T>
 typename Vector<T>::const_reference
-Vector<T>::operator[](const size_t index) const
+Vector<T>::operator[](const size_t index) const noexcept
 {
     return *(begin() + index);
 }
@@ -470,7 +472,7 @@ template<typename T>
 typename Vector<T>::reference
 Vector<T>::at(const size_t index)
 {
-    if (index >= (static_cast<size_t>(end() - begin())))
+    if (index >= size())
     {
         throw std::out_of_range("Vector::at -- out of range");
     }
@@ -482,7 +484,7 @@ template<typename T>
 typename Vector<T>::const_reference
 Vector<T>::at(const size_t index) const
 {
-    if (index >= (static_cast<size_t>(end() - begin())))
+    if (index >= size())
     {
         throw std::out_of_range("Vector::at -- out of range");
     }
@@ -560,6 +562,13 @@ Vector<T>::begin() const noexcept
 }
 
 template<typename T>
+typename Vector<T>::const_iterator
+Vector<T>::cbegin() const noexcept
+{
+    return _container;
+}
+
+template<typename T>
 inline typename Vector<T>::iterator
 Vector<T>::end() noexcept
 {
@@ -569,6 +578,13 @@ Vector<T>::end() noexcept
 template<typename T>
 inline typename Vector<T>::const_iterator
 Vector<T>::end() const noexcept
+{
+    return _container + _size;
+}
+
+template<typename T>
+typename Vector<T>::const_iterator
+Vector<T>::cend() const noexcept
 {
     return _container + _size;
 }
