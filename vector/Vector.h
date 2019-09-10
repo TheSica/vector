@@ -7,18 +7,23 @@ template<typename T>
 class Vector
 {
 public:
-    typedef                T* iterator;
-    typedef const          T* const_iterator;
+    typedef                    std::size_t size_type;
+    typedef                    std::ptrdiff_t difference_type;
 
-    typedef                T& reference;
-    typedef const          T& const_reference;
+    typedef                    T value_type;
 
-    typedef                T* pointer;
-    typedef const          T* const_pointer;
+    typedef                    T* iterator;
+    typedef const              T* const_iterator;
+
+    typedef                    T& reference;
+    typedef const              T& const_reference;
+
+    typedef                    T* pointer;
+    typedef const              T* const_pointer;
 
 public:
-    Vector();
-    explicit Vector(const size_t size);
+    Vector() noexcept;
+    explicit Vector(size_type count);
     Vector(const Vector<T>& other);
     Vector(Vector<T>&& other) noexcept (std::is_nothrow_move_constructible_v<T>);
     ~Vector();
@@ -39,18 +44,19 @@ public:
     const_iterator erase(const_iterator pos);
     iterator erase(iterator pos, iterator last);
 
-    reference operator[](const size_t n) noexcept;
-    const_reference operator[](const size_t n) const noexcept;
+    reference operator[](const size_type n);
+    const_reference operator[](const size_type n) const;
 
-    reference at(const size_t n);
-    const_reference at(const size_t n) const;
+    reference at(const size_type n);
+    const_reference at(const size_type n) const;
 
 public:
     bool validate() const noexcept;
     bool empty() const noexcept;
-    size_t size() const noexcept;
-    size_t capacity() const noexcept;
-    void reserve(const size_t newCapacity);
+    size_type size() const noexcept;
+    size_type capacity() const noexcept;
+    void reserve(const size_type newCapacity);
+    void clear() noexcept;
 
 public:
     iterator                   begin() noexcept;
@@ -71,24 +77,23 @@ public:
     const_pointer              data() const noexcept;
 
 private:
-    void cleanup();
-    void reallocate(const size_t desiredCapacity);
+    void reallocate(const size_type desiredCapacity);
     void resize();
     void swap(Vector<T>& other) noexcept;
-    void memcopy_trivially(T* src, T* dest, const size_t size);
+    void memcopy_trivially(T* src, T* dest, const size_type size);
     template<class... Args>
     void emplace_back_internal(Args&& ... element);
     template<class... U>
     void emplace_internal(iterator pos, U&& ... value);
 
 private:
-    size_t _size;
-    size_t _capacity;
+    size_type _size;
+    size_type _capacity;
     T* _container;
 };
 
 template<typename T>
-Vector<T>::Vector()
+Vector<T>::Vector() noexcept
     :
     _size(0),
     _capacity(0),
@@ -97,24 +102,13 @@ Vector<T>::Vector()
 }
 
 template<typename T>
-Vector<T>::Vector(const size_t size)
+Vector<T>::Vector(size_type count)
     :
-    _size(0),
-    _capacity(size),
-    _container(static_cast<T*>(_aligned_malloc(sizeof(T)* size, alignof(T))))
+    _size(count),
+    _capacity(count),
+    _container(static_cast<T*>(_aligned_malloc(sizeof(T)* count, alignof(T))))
 {
-    try
-    {
-        for (; _size < _capacity; _size += 1)
-        {
-            new (_container + _size) T();
-        }
-    }
-    catch (...)
-    {
-        cleanup();
-        throw;
-    }
+    std::uninitialized_value_construct_n(_container, count);
 }
 
 template<typename T>
@@ -130,21 +124,7 @@ Vector<T>::Vector(const Vector<T>& other)
     }
     else
     {
-		std::uninitialized_copy(other.begin(), other.end(), _container);
-
-       /* try
-        {
-			
-            for (_size = 0; _size < other._size; _size += 1)
-            {
-                emplace_back_internal(std::forward<T>(other._container[_size]));
-            }
-        }
-        catch (...)
-        {
-            cleanup();
-            throw;
-        }*/
+        std::uninitialized_copy(other.begin(), other.end(), _container);
     }
 }
 
@@ -163,7 +143,7 @@ Vector<T>::Vector(Vector<T>&& other) noexcept (std::is_nothrow_move_constructibl
 template<typename T>
 Vector<T>::~Vector()
 {
-    cleanup();
+    clear();
 }
 
 template<typename T>
@@ -278,7 +258,7 @@ Vector<T>::erase(iterator first, iterator last)
         return begin();
     }
 
-    size_t elementsToRemoveCnt = std::distance(first, last);
+    size_type elementsToRemoveCnt = std::distance(first, last);
 
     auto position = std::move(last, end(), first);
 
@@ -306,7 +286,7 @@ Vector<T>::emplace_back(Args&& ... args)
 }
 
 template<typename T>
-void Vector<T>::cleanup()
+void Vector<T>::clear() noexcept
 {
     if constexpr (!std::is_trivially_destructible_v<T>)
     {
@@ -337,7 +317,7 @@ std::enable_if_t<std::is_copy_constructible_v<T> && !std::is_nothrow_move_constr
 }
 
 template<typename T>
-inline void Vector<T>::reallocate(const size_t desiredCapacity)
+inline void Vector<T>::reallocate(const size_type desiredCapacity)
 {
     _capacity = desiredCapacity;
 
@@ -356,7 +336,7 @@ inline void Vector<T>::reallocate(const size_t desiredCapacity)
                 uninitialized_move_or_copy<T>(begin(), end(), alloced_mem);
             }
 
-            cleanup();
+            clear();
 
             _container = alloced_mem;
         }
@@ -375,7 +355,7 @@ inline void Vector<T>::reallocate(const size_t desiredCapacity)
 template<typename T>
 void Vector<T>::resize()
 {
-    reallocate(std::max(static_cast<size_t>(2), _capacity * 2));
+    reallocate(std::max(static_cast<size_type>(2), _capacity * 2));
 }
 
 template<typename T>
@@ -387,7 +367,7 @@ inline void Vector<T>::swap(Vector<T>& other) noexcept
 }
 
 template<typename T>
-void Vector<T>::memcopy_trivially(T* dest, T* src, const size_t size)
+void Vector<T>::memcopy_trivially(T* dest, T* src, const size_type size)
 {
     std::memcpy(dest, src, size * sizeof(T));
     _size = size;
@@ -414,7 +394,7 @@ void Vector<T>::emplace_internal(iterator pos, U&& ... value)
         return;
     }
 
-    const size_t positionIndex = std::distance(begin(), pos);
+    const size_type positionIndex = std::distance(begin(), pos);
 
     if (_size == _capacity)
     {
@@ -436,7 +416,7 @@ void Vector<T>::emplace_internal(iterator pos, U&& ... value)
         }
         catch (...)
         {
-            cleanup();
+            clear();
             swap(tmp);
             throw;
         }
@@ -460,21 +440,21 @@ inline bool operator==(const Vector<T>& a, const Vector<T>& b)
 
 template<typename T>
 typename Vector<T>::reference
-Vector<T>::operator[](const size_t index) noexcept
+Vector<T>::operator[](const size_type index)
 {
     return *(begin() + index);
 }
 
 template<typename T>
 typename Vector<T>::const_reference
-Vector<T>::operator[](const size_t index) const noexcept
+Vector<T>::operator[](const size_type index) const
 {
     return *(begin() + index);
 }
 
 template<typename T>
 typename Vector<T>::reference
-Vector<T>::at(const size_t index)
+Vector<T>::at(const size_type index)
 {
     if (index >= size())
     {
@@ -486,7 +466,7 @@ Vector<T>::at(const size_t index)
 
 template<typename T>
 typename Vector<T>::const_reference
-Vector<T>::at(const size_t index) const
+Vector<T>::at(const size_type index) const
 {
     if (index >= size())
     {
@@ -509,19 +489,21 @@ inline bool Vector<T>::empty() const noexcept
 }
 
 template<typename T>
-inline size_t Vector<T>::size() const noexcept
+inline typename Vector<T>::size_type
+Vector<T>::size() const noexcept
 {
     return _size;
 }
 
 template<typename T>
-inline size_t Vector<T>::capacity() const noexcept
+inline typename Vector<T>::size_type
+Vector<T>::capacity() const noexcept
 {
     return _capacity;
 }
 
 template<typename T>
-inline void Vector<T>::reserve(const size_t newCapacity)
+inline void Vector<T>::reserve(const size_type newCapacity)
 {
     if (newCapacity <= _capacity)
     {
@@ -532,20 +514,11 @@ inline void Vector<T>::reserve(const size_t newCapacity)
     {
         reallocate(newCapacity);
     }
-    else if (empty() && _capacity > 0)
+    else
     {
         _aligned_free(_container);
 
         _container = static_cast<T*>(_aligned_malloc(sizeof(T) * newCapacity, alignof(T)));
-    }
-    else if (empty() && _capacity == 0)
-    {
-        _container = static_cast<T*>(_aligned_malloc(sizeof(T) * newCapacity, alignof(T)));
-    }
-    else
-    {
-        // ?
-        throw;
     }
 
     _capacity = newCapacity;
@@ -599,7 +572,7 @@ Vector<T>::front()
 {
     return const_cast<reference>(std::as_const(*this).front());
 }
-    
+
 template<typename T>
 inline typename Vector<T>::const_reference
 Vector<T>::front() const
