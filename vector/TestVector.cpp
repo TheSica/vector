@@ -277,6 +277,20 @@ TYPED_TEST_P(VectorTest, GivenCopyConstructedVector_IsEqualAndValid)
 	EXPECT_TRUE(vector2 == vector1);
 }
 
+TYPED_TEST_P(VectorTest, GivenCopyListInitializedVector_AssignmentDoesntFail)
+{
+	Vector<TypeParam> vector = { TypeParam(),TypeParam(),TypeParam(),TypeParam(),TypeParam(),TypeParam() };
+
+	EXPECT_EQ(vector.size(), 6);
+}
+
+TYPED_TEST_P(VectorTest, GivenDirectListInitializedVector_InsertDoesntFail)
+{
+	Vector<TypeParam> vector { TypeParam(),TypeParam(),TypeParam(),TypeParam(),TypeParam(),TypeParam() };
+
+	EXPECT_EQ(vector.size(), 6);
+}
+
 TYPED_TEST_P(VectorTest, GivenNonEmptyVector_CopyAssignmentOperatorWorks)
 {
 	Vector<TypeParam> vector1(5);
@@ -348,7 +362,9 @@ REGISTER_TYPED_TEST_SUITE_P(VectorTest,
 	GivenEmptyVector_CopyAssignmentOperatorWorks,
 	GivenEmptyArray_ResizeAllocatesTheCorrectSize,
 	GivenEmptyArray_InsertWorksForTestTypes,
-	InsertStressTest
+	InsertStressTest,
+	GivenCopyListInitializedVector_AssignmentDoesntFail,
+	GivenDirectListInitializedVector_InsertDoesntFail
 );
 
 using TestTypes = ::testing::Types<int, TestObject, std::list<TestObject>>;
@@ -369,6 +385,78 @@ TEST(ConstructorTests, GivenTestObjectVetor_MoveConstructorWorks)
 	EXPECT_EQ(toVectorA.size(), 3);
 	EXPECT_EQ(toVectorA.front().mX, 33);
 	EXPECT_EQ(vec.size(), 0);
+}
+
+TEST(ConstructorTests, GivenCopyListInitializedVector_SizeIsCorrect)
+{
+	Vector<int> intArray = { 1, 2, 3, 4, 5 };
+
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 5);
+}
+
+TEST(ConstructorTests, GivenCopyListInitializedVector_ElementsAreAtCorrespondingOrder)
+{
+	Vector<int> intArray = { 1, 2, 3, 4, 5 };
+
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_TRUE(VerifySequence(intArray.begin(), intArray.end(), int(), "vector=(initializer_list)", 1, 2, 3, 4, 5, -1));
+}
+
+TEST(ConstructorTests, GivenNonEmptyVector_ListCopyInitializationOverwritesSuccessfully)
+{
+	Vector<int> intArray = { 1, 2, 3, 4, 5 };
+	intArray = { 10, 11, 12, 13, 14 };
+
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 5);
+	EXPECT_TRUE(VerifySequence(intArray.begin(), intArray.end(), int(), "vector=(initializer_list)", 10, 11, 12, 13, 14, -1));
+}
+
+TEST(ConstructorTests, GivenNonEmptyVector_ListCopyInitializationOverwritesArraySmallerInSize)
+{
+	Vector<int> intArray = { 1, 2, 3, 4, 5 };
+	intArray = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
+
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 11);
+	EXPECT_TRUE(VerifySequence(intArray.begin(), intArray.end(), int(), "vector=(initializer_list)", 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, -1));
+}
+
+TEST(ConstructorTests, GivenDirectListInitializedVector_SizeIsCorrect)
+{
+	Vector<int> intArray { 1, 2, 3, 4, 5 };
+
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 5);
+}
+
+TEST(ConstructorTests, GivenDirectListInitializedVector_ElementsAreAtCorrespondingOrder)
+{
+	Vector<int> intArray { 1, 2, 3, 4, 5 };
+
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_TRUE(VerifySequence(intArray.begin(), intArray.end(), int(), "vector(initializer_list)", 1, 2, 3, 4, 5, -1));
+}
+
+TEST(ConstructorTests, GivenNonEmptyVector_ListDirectInitializationOverwritesSuccessfully)
+{
+	Vector<int> intArray { 1, 2, 3, 4, 5 };
+	intArray = { 10, 11, 12, 13, 14 };
+
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 5);
+	EXPECT_TRUE(VerifySequence(intArray.begin(), intArray.end(), int(), "vector(initializer_list)", 10, 11, 12, 13, 14, -1));
+}
+
+TEST(ConstructorTests, GivenNonEmptyVector_ListDirectInitializationOverwritesArraySmallerInSize)
+{
+	Vector<int> intArray { 1, 2, 3, 4, 5 };
+	intArray = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
+
+	EXPECT_TRUE(intArray.validate());
+	EXPECT_EQ(intArray.size(), 11);
+	EXPECT_TRUE(VerifySequence(intArray.begin(), intArray.end(), int(), "vector(initializer_list)", 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, -1));
 }
 
 TEST(AtOperator, GivenNonEmptyArray_AtOperatorWorks)
@@ -704,7 +792,7 @@ TEST(InsertTest, GivenNonEmptyArray_InsertEmplacesElementAtTheRightPosition)
 
 	toVectorC.insert(toVectorC.begin(), TestObject(3, 4, 5));
 	EXPECT_EQ(toVectorC.size(), 2);
-	EXPECT_EQ(toVectorC.front().mX , (3 + 4 + 5));
+	EXPECT_EQ(toVectorC.front().mX, (3 + 4 + 5));
 	EXPECT_EQ(TestObject::sTOMoveCtorCount, 3);				// 3 because the original count of 1, plus the existing
 															// vector element will be moved, plus the one being emplaced.
 }
@@ -717,7 +805,7 @@ TEST(InsertTest, GivenNonEmptyArray_InsertingAtTheEndWorks)
 	{
 		v.push_back(13);
 	}
-	
+
 	// insert at end of size and capacity.
 	v.insert(v.end(), 99);
 
@@ -766,7 +854,7 @@ TEST(InsertTest, GivenNonEmptyArray_InsertingInTheMiddleWorks)
 	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 13, 13, 13, 13, 13, 13, 13, 49, 99, 999, -1));
 }
 
-TEST(InsertTest, InsertWithReallocationWorks)
+TEST(InsertTest, GivenNonEmptyVector_InsertWithReallocationWorks)
 {
 	Vector<int> v;
 	v.reserve(7);
@@ -780,4 +868,26 @@ TEST(InsertTest, InsertWithReallocationWorks)
 	v.insert(v.end(), 99);
 
 	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 99, 13, 13, 13, 13, 13, 13, 99, 13, 99, -1));
+}
+
+TEST(InsertTest, GivenNonEmptyUniqueVector_InsertKeepsTheElement)
+{
+	Vector<int> v;
+	v.push_back(1);
+	v.push_back(2);
+	v.push_back(3);
+
+	v.insert(v.begin(), 0);
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 0, 1, 2, 3, -1));
+
+	v.insert(v.end(), 4);
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 0, 1, 2, 3, 4, -1));
+
+	v.insert(v.begin(), 99);
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 99, 0, 1, 2, 3, 4, -1));
+
+	v.insert(v.begin(), 19);
+	v.insert(v.begin(), 19);
+	v.insert(v.begin(), 19);
+	EXPECT_TRUE(VerifySequence(v.begin(), v.end(), int(), "vector.insert", 19, 19, 19, 99, 0, 1, 2, 3, 4, -1));
 }
