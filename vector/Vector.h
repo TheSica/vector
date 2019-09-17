@@ -27,11 +27,11 @@ public:
 	explicit Vector(size_type count);
 	Vector(const Vector<T>& other);
 	Vector(Vector<T>&& other) noexcept (std::is_nothrow_move_constructible_v<T>);
-	Vector(std::initializer_list<value_type> ilist);
+	Vector(std::initializer_list<T> ilist);
 	~Vector();
 	Vector<T>& operator=(const Vector<T>& other);
 	Vector<T>& operator=(Vector<T>&& other) noexcept(std::is_nothrow_move_assignable_v<T>);
-	Vector<T>& operator=(std::initializer_list<value_type> ilist);
+	Vector<T>& operator=(std::initializer_list<T> ilist);
 
 public:
 	template<class... Args>
@@ -273,9 +273,7 @@ template<typename T>
 typename Vector<T>::const_iterator
 Vector<T>::erase(const_iterator position)
 {
-	auto destPositon = const_cast<iterator>(position);
-
-	return erase(destPositon);
+	return erase(const_cast<iterator>(position));
 }
 
 template<typename T>
